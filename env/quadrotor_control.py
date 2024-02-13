@@ -4,7 +4,7 @@ from copy import deepcopy
 
 import gym
 from gym import spaces
-from quad_utils import *
+from env.quad_utils import *
 
 GRAV = 9.81
 

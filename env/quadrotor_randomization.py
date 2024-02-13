@@ -2,8 +2,8 @@ import numpy as np
 from numpy.linalg import norm
 from copy import deepcopy
 
-from quad_utils import *
-from quad_models import *
+from env.quad_utils import *
+from env.quad_models import *
 
 def clip_params_positive(params):
     def clip_positive(key, item):

@@ -33,15 +33,15 @@ import gym.envs.registration as gym_reg
 
 import transforms3d as t3d
 
-from quadrotor_randomization import *
-from quadrotor_control import *
-from quadrotor_obstacles import *
-from quadrotor_visualization import *
-from quad_utils import *
-from inertia import QuadLink
-from sensor_noise import SensorNoise
+from env.quadrotor_randomization import *
+from env.quadrotor_control import *
+from env.quadrotor_obstacles import *
+from env.quadrotor_visualization import *
+from env.quad_utils import *
+from env.inertia import QuadLink
+from env.sensor_noise import SensorNoise
 
-from quad_models import *
+from env.quad_models import *
 
 logger = logging.getLogger(__name__)
 
@@ -703,9 +703,9 @@ class QuadrotorEnv(gym.Env):
     def __init__(self, dynamics_params="defaultquad", dynamics_change=None,
                  dynamics_randomize_every=None, dynamics_randomization_ratio=0.,
                  dynamics_randomization_ratio_params=None,
-                 raw_control=True, raw_control_zero_middle=True, dim_mode='3D', tf_control=False, sim_freq=200.,
-                 sim_steps=2,
-                 obs_repr="xyz_vxyz_rot_omega", ep_time=4, obstacles_num=0, room_size=10, init_random_state=False,
+                 raw_control=True, raw_control_zero_middle=True, dim_mode='3D', tf_control=False, sim_freq=500.,
+                 sim_steps=1,
+                 obs_repr="xyz_vxyz_rot_omega", ep_time=1, obstacles_num=0, room_size=10, init_random_state=False,
                  rew_coeff=None, sense_noise=None, verbose=False, gravity=GRAV, resample_goal=False):
         np.seterr(under='ignore')
         """
