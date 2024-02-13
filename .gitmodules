@@ -1,4 +1,0 @@
-[submodule "lvrep-rl"]
-	path = lvrep-rl
-	url = https://github.com/mahaitongdae/lvrep-rl.git
-	branch = dev_speder
