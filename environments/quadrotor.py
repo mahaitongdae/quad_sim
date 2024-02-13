@@ -30,23 +30,31 @@ import gym
 from gym import spaces
 from gym.utils import seeding
 import gym.envs.registration as gym_reg
+import socket
 
 import transforms3d as t3d
 
-from env.quadrotor_randomization import *
-from env.quadrotor_control import *
-from env.quadrotor_obstacles import *
-from env.quadrotor_visualization import *
-from env.quad_utils import *
-from env.inertia import QuadLink
-from env.sensor_noise import SensorNoise
+from environments.quadrotor_randomization import *
+from environments.quadrotor_control import *
+# from env.quadrotor_obstacles import *
 
-from env.quad_models import *
+from environments.quad_utils import *
+from environments.inertia import QuadLink
+from environments.sensor_noise import SensorNoise
+
+from environments.quad_models import *
 
 logger = logging.getLogger(__name__)
 
 GRAV = 9.81  # default gravitational constant
 EPS = 1e-6  # small constant to avoid divisions by 0 and log(0)
+
+device_name = socket.gethostname()
+if device_name.startswith('naliseas'):
+    RENDERING = False
+else:
+    RENDERING = True
+    from environments.quadrotor_visualization import *
 
 
 ## WARN:
@@ -830,7 +838,7 @@ class QuadrotorEnv(gym.Env):
             elif isinstance(dynamics_params, dict):
                 # This option is good when you only partially provide parameters of the model
                 # For example if you are making some sort of a search, from the initial model
-                self.dynamics_params_def = copy.deepcopy(dynamics_params)
+                self.dynamics_params_def = deepcopy(dynamics_params)
 
             ## Now, updating if we are providing modifications
             if dynamics_change is not None:
@@ -888,7 +896,7 @@ class QuadrotorEnv(gym.Env):
             # "spin_z": 0.5, "spin_xy": 0.5,
             "spin": 0.,
             "vel": 0.}
-        rew_coeff_orig = copy.deepcopy(self.rew_coeff)
+        rew_coeff_orig = deepcopy(self.rew_coeff)
 
         if rew_coeff is not None:
             assert isinstance(rew_coeff, dict)
@@ -916,7 +924,7 @@ class QuadrotorEnv(gym.Env):
             def numpy_convert(key, item):
                 return str(item)
 
-            self.dynamics_params_converted = copy.deepcopy(self.dynamics_params)
+            self.dynamics_params_converted = deepcopy(self.dynamics_params)
             walk_dict(self.dynamics_params_converted, numpy_convert)
             yaml_file.write(yaml.dump(self.dynamics_params_converted, default_flow_style=False))
 
@@ -951,10 +959,11 @@ class QuadrotorEnv(gym.Env):
 
         ################################################################################
         ## SCENE
-        if self.obstacles_num > 0:
-            self.obstacles = _random_obstacles(None, obstacles_num, self.room_size, self.dynamics.arm)
-        else:
-            self.obstacles = None
+        # if self.obstacles_num > 0:
+        #     self.obstacles = _random_obstacles(None, obstacles_num, self.room_size, self.dynamics.arm)
+        # else:
+        #     self.obstacles = None
+        self.obstacles = None
 
         ################################################################################
         ## CONTROL
@@ -1343,8 +1352,8 @@ class QuadrotorEnv(gym.Env):
         return [seed]
 
     def _step(self, action):
-        self.actions[1] = copy.deepcopy(self.actions[0])
-        self.actions[0] = copy.deepcopy(action)
+        self.actions[1] = deepcopy(self.actions[0])
+        self.actions[0] = deepcopy(action)
         # print('actions_norm: ', np.linalg.norm(self.actions[0]-self.actions[1]))
 
         pos, vel, rot, omega, acc = self.sense_noise.add_noise(
@@ -1403,7 +1412,7 @@ class QuadrotorEnv(gym.Env):
         else:
             ## Generating new params
             self.dynamics_params = perturb_dyn_parameters(
-                params=copy.deepcopy(self.dynamics_params_def),
+                params=deepcopy(self.dynamics_params_def),
                 noise_params=self.dyn_randomization_params
             )
         ## Updating params
@@ -1419,12 +1428,13 @@ class QuadrotorEnv(gym.Env):
 
         ##############################################################
         ## VISUALIZATION
-        if self.scene is None:
-            self.scene = Quadrotor3DScene(model=self.dynamics.model,
-                                          w=640, h=480, resizable=True, obstacles=self.obstacles,
-                                          viewpoint=self.viewpoint)
-        else:
-            self.scene.update_model(self.dynamics.model)
+        if RENDERING:
+            if self.scene is None:
+                self.scene = Quadrotor3DScene(model=self.dynamics.model,
+                                            w=640, h=480, resizable=True, obstacles=self.obstacles,
+                                            viewpoint=self.viewpoint)
+            else:
+                self.scene.update_model(self.dynamics.model)
 
         ##############################################################
         ## GOAL
@@ -1490,7 +1500,8 @@ class QuadrotorEnv(gym.Env):
         self.dynamics.reset()
 
         # Resetting scene to reflect the state we have just set in dynamics
-        self.scene.reset(self.goal, self.dynamics)
+        if RENDERING:
+            self.scene.reset(self.goal, self.dynamics)
         # self.scene.update_state(self.dynamics)
 
         # Reseting some internal state (counters, etc)

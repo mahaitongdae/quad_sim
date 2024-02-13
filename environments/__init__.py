@@ -1,4 +1,4 @@
-from env.quadrotor import QuadrotorEnv
+from environments.quadrotor import QuadrotorEnv
 from gym.envs.registration import register
 
 register(id='Quadrotor-v1', 

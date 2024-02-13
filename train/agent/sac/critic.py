@@ -9,7 +9,7 @@ import torch
 from torch import nn
 import torch.nn.functional as F
 
-from utils import util 
+from train.utils import util 
 
 
 class DoubleQCritic(nn.Module):

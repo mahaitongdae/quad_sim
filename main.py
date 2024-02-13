@@ -7,10 +7,10 @@ import datetime
 
 from tensorboardX import SummaryWriter
 
-from utils import util, buffer
-from agent.sac import sac_agent
-from agent.feature_sac import feature_sac_agent
-from env.quadrotor import QuadrotorEnv
+from train.utils import util, buffer
+from train.agent.sac import sac_agent
+from train.agent.feature_sac import feature_sac_agent
+from environments.quadrotor import QuadrotorEnv
 
 if __name__ == "__main__":
 

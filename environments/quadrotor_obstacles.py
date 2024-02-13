@@ -1,7 +1,7 @@
 import numpy as np
 from numpy.linalg import norm
-from env.quad_utils import *
-import env.rendering3d as r3d
+from environments.quad_utils import *
+import environments.rendering3d as r3d
 
 # determine where to put the obstacles such that no two obstacles intersect
 # and compute the list of obstacles to collision check at each 2d tile.

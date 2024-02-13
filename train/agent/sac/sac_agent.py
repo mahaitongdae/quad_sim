@@ -4,10 +4,10 @@ import torch.nn as nn
 import torch.nn.functional as F
 import math
 
-from utils import util
+from train.utils import util
 
-from agent.sac.critic import DoubleQCritic
-from agent.sac.actor import DiagGaussianActor
+from train.agent.sac.critic import DoubleQCritic
+from train.agent.sac.actor import DiagGaussianActor
 
 import socket
 

@@ -2,8 +2,8 @@ import numpy as np
 from numpy.linalg import norm
 import copy
 
-import env.rendering3d as r3d
-from env.quad_utils import *
+import environments.rendering3d as r3d
+from environments.quad_utils import *
 
 # for visualization.
 # a rough attempt at a reasonable third-person camera

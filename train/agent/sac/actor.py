@@ -10,7 +10,7 @@ from torch import nn
 import torch.nn.functional as F
 from torch import distributions as pyd
 
-from utils import util
+from train.utils import util
 
 
 class TanhTransform(pyd.transforms.Transform):
