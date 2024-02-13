@@ -9,7 +9,7 @@ import sys
 import shutil
 import yaml
 
-from training.agent.sac.actor import DiagGaussianActor
+from train.agent.sac.actor import DiagGaussianActor
 
 
 def subdir(root_dir):

@@ -37,7 +37,7 @@ if __name__ == "__main__":
     eval_env = gym.make(args.env)
     env.seed(args.seed)
     eval_env.seed(args.seed)
-    max_length = env._max_episode_steps
+    # max_length = env._max_episode_steps
 
     # setup log
     # dir_name =
@@ -99,7 +99,7 @@ if __name__ == "__main__":
 
         # Perform action
         next_state, reward, done, _ = env.step(action)
-        done_bool = float(done) if episode_timesteps < max_length else 0
+        done_bool = float(done) # if episode_timesteps < max_length else 0
 
         # Store data in replay buffer
         replay_buffer.add(state, action, next_state, reward, done_bool)
