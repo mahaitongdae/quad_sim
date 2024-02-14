@@ -9,6 +9,7 @@ headers_controller_nn = """
 """
 
 headers_network_evaluate = """
+#include "stabilizer_types.h"
 #include "network_evaluate.h"
 
 """
@@ -20,6 +21,21 @@ constants = """
 #define A 2.130295e-11
 #define B 1.032633e-6
 #define C 5.484560e-4
+
+"""
+
+scale_clip_op = """
+
+// range of action -1 ... 1, need to scale to range 0 .. 1
+float scale(float v) {
+	return 0.5f * (v + 1);
+}
+
+float clip(float v, float min, float max) {
+	if (v < min) return min;
+	if (v > max) return max;
+	return v;
+}
 
 """
 
@@ -49,6 +65,18 @@ sigmoid_activation = """
 
 float sigmoid(float num) {
 	return 1 / (1 + exp(-num));
+}
+
+"""
+
+elu_activation = """
+
+float elu(float num) {
+	if (num > 0) {
+		return num;
+	} else {
+		exp(num) - 1;
+	}
 }
 
 """

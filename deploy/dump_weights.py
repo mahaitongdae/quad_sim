@@ -3,11 +3,14 @@ import numpy as np
 import os
 import torch
 
+ACTION_DIM = 4 # for final layer trim
+
 from code_blocks import (
     headers_network_evaluate,
     linear_activation,
     sigmoid_activation,
     relu_activation,
+    scale_clip_op
 )
 
 
@@ -40,13 +43,15 @@ def generate(actor, output_path=None):
     for i in range(n_layers):
         w = actor.trunk[2 * i].weight.detach().numpy()
         b = actor.trunk[2 * i].weight.detach().numpy()
-        weights.append(w)
-        biases.append(b)
+        if i != n_layers - 1:
+            weights.append(w)
+            biases.append(b)
+        else:
+            weights.append(w[:ACTION_DIM, :]) # Only keep the mean value part
+            biases.append(b[:ACTION_DIM])
 
-    structure = """static const int structure[""" + str(int(n_layers / 2)) + """][2] = {"""
+    structure = """static const int structure[""" + str(n_layers) + """][2] = {"""
 
-    n_weight = 0
-    n_bias = 0
     for l in range(n_layers):
 
         weights_shape = weights[l].shape
@@ -80,7 +85,7 @@ def generate(actor, output_path=None):
         biases_strings.append(bias)
 
         ## add the output arrays
-        output = """static float output_""" + str(n_bias) + """[""" + str(bias_shape[0]) + """];\n"""
+        output = """static float output_""" + str(l) + """[""" + str(bias_shape[0]) + """];\n"""
         outputs_strings.append(output)
 
     # complete the structure array
@@ -96,9 +101,9 @@ def generate(actor, output_path=None):
 
     # the first hidden layer
     input_for_loop = """
-		for (int i = 0; i < structure[0][1]; i++) {
+		for (int i = 0; i < structure[0][0]; i++) {
 			output_0[i] = 0;
-			for (int j = 0; j < structure[0][0]; j++) {
+			for (int j = 0; j < structure[0][1]; j++) {
 				output_0[i] += state_array[j] * layer_0_weight[j][i];
 			}
 			output_0[i] += layer_0_bias[i];
@@ -108,25 +113,25 @@ def generate(actor, output_path=None):
     for_loops.append(input_for_loop)
 
     # rest of the hidden layers
-    for n in range(1, int(n_layers / 2) - 1):
+    for n in range(1, n_layers - 1):
         for_loop = """
-		for (int i = 0; i < structure[""" + str(n) + """][1]; i++) {
+		for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
 			output_""" + str(n) + """[i] = 0;
-			for (int j = 0; j < structure[""" + str(n) + """][0]; j++) {
+			for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
 				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[j][i];
 			}
 			output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
-			output_""" + str(n) + """[i] = tanhf(output_""" + str(n) + """[i]);
+			output_""" + str(n) + """[i] = elu(output_""" + str(n) + """[i]);
 		}
 		"""
         for_loops.append(for_loop)
 
-    n = int(n_layers / 2) - 1
+    n = n_layers - 1
     # the last hidden layer which is supposed to have no non-linearity
     output_for_loop = """
-		for (int i = 0; i < structure[""" + str(n) + """][1]; i++) {
+		for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
 			output_""" + str(n) + """[i] = 0;
-			for (int j = 0; j < structure[""" + str(n) + """][0]; j++) {
+			for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
 				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[j][i];
 			}
 			output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
@@ -136,15 +141,15 @@ def generate(actor, output_path=None):
 
     ## assign network outputs to control
     assignment = """
-		control_n->thrust_0 = output_""" + str(n) + """[0];
-		control_n->thrust_1 = output_""" + str(n) + """[1];
-		control_n->thrust_2 = output_""" + str(n) + """[2];
-		control_n->thrust_3 = output_""" + str(n) + """[3];	
+		control->normalizedForces[0] = clip(scale(output_2[0]), 0.0, 1.0);
+		control->normalizedForces[1] = clip(scale(output_2[1]), 0.0, 1.0);
+		control->normalizedForces[2] = clip(scale(output_2[2]), 0.0, 1.0);
+		control->normalizedForces[3] = clip(scale(output_2[3]), 0.0, 1.0);
 	"""
 
     ## construct the network evaluation function
     controller_eval = """
-	void networkEvaluate(struct control_t_n *control_n, const float *state_array) {
+	void networkEvaluate(control_t *control, const float *state_array) {
 	"""
     for code in for_loops:
         controller_eval += code
@@ -164,6 +169,7 @@ def generate(actor, output_path=None):
     source += linear_activation
     source += sigmoid_activation
     source += relu_activation
+    source += scale_clip_op
     ## the network evaluation function
     source += structure
     for output in outputs_strings:
