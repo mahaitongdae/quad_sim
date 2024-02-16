@@ -197,5 +197,5 @@ if __name__ == '__main__':
     actor = DiagGaussianActor(obs_dim=18, action_dim=4, hidden_dim=64, hidden_depth=2,
                               log_std_bounds=[-5., 2.])  # hard coded for drone controllers.
 
-    actor.load_state_dict(torch.load('/home/mht/sim_to_real/training/train/log/Quadrotor-v1/sac/reproduce_speder/1/best_actor.pth'))
+    actor.load_state_dict(torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/Quadrotor-v1/sac/sac_baseline/1/best_actor.pth'))
     generate(actor, '../deploy/network_evaluate.c')

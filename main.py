@@ -15,13 +15,13 @@ from environments.quadrotor import QuadrotorEnv
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='reproduce_speder', type=str)
+    parser.add_argument("--dir", default='speder_no_orth', type=str)
     parser.add_argument("--alg", default="speder")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="Quadrotor-v1")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=float)  # Time steps initial random policy is used
-    parser.add_argument("--eval_freq", default=5e3, type=int)  # How often (time steps) we evaluate
-    parser.add_argument("--max_timesteps", default=5e5, type=float)  # Max time steps to run environment
+    parser.add_argument("--eval_freq", default=2e4, type=int)  # How often (time steps) we evaluate
+    parser.add_argument("--max_timesteps", default=8e5, type=float)  # Max time steps to run environment
     parser.add_argument("--expl_noise", default=0.1)  # Std of Gaussian exploration noise
     parser.add_argument("--batch_size", default=256, type=int)  # Batch size for both actor and critic
     parser.add_argument("--hidden_dim", default=256, type=int)  # Network hidden dims
@@ -144,6 +144,18 @@ if __name__ == "__main__":
                     best_feature_mu = agent.feature_mu.state_dict()
                     torch.save(best_feature_phi, os.path.join(log_path, 'best_feature_phi.pth'))
                     torch.save(best_feature_mu, os.path.join(log_path, 'best_feature_mu.pth'))
+            
+            if t >= int(args.max_timesteps) - 5:
+                terminal_actor = agent.actor.state_dict()
+                terminal_critic = agent.critic.state_dict()
+                torch.save(best_actor, os.path.join(log_path, 'terminal_actor_{}.pth'.format(t)))
+                torch.save(best_critic, os.path.join(log_path, 'terminal_critic_{}.pth'.format(t)))
+
+                if args.alg != 'sac':
+                    best_feature_phi = agent.feature_phi.state_dict()
+                    best_feature_mu = agent.feature_mu.state_dict()
+                    torch.save(best_feature_phi, os.path.join(log_path, 'terminal_phi_{}.pth'.format(t)))
+                    torch.save(best_feature_mu, os.path.join(log_path, 'terminal_mu_{}.pth'.format(t)))
 
             print('Step {}. Steps per sec: {:.4g}.'.format(t + 1, steps_per_sec))
 

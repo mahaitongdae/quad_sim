@@ -361,7 +361,7 @@ class SPEDERAgent(MLEFeatureAgent):
         identity = torch.einsum('bij,bjk->bik', phi_vec, phi_vec_t)
         # batch matrix multiplication, more can see https://pytorch.org/docs/stable/generated/torch.einsum.html#torch.einsum
         identity = torch.mean(identity, dim=0)
-        penalty_factor = torch.tensor(1e10, device=device)  # TODO: tune it maybe
+        penalty_factor = torch.tensor(0., device=device)  # TODO: tune it maybe
         penalty_loss = penalty_factor * F.mse_loss(identity, torch.eye(self.feature_dim).to(device) / self.feature_dim)
 
         loss = model_learning_loss + penalty_loss

@@ -11,6 +11,8 @@ from train.agent.sac.actor import DiagGaussianActor
 
 import socket
 
+S2R_HIDDEN_DIM = 64
+
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
 	device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
@@ -65,7 +67,7 @@ class SACAgent(object):
 		self.actor = DiagGaussianActor(
 			obs_dim=state_dim, 
 			action_dim=action_dim,
-			hidden_dim=hidden_dim,
+			hidden_dim=S2R_HIDDEN_DIM,
 			hidden_depth=2,
 			log_std_bounds=[-5., 2.], 
 		).to(self.device)
