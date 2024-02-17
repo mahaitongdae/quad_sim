@@ -10,6 +10,7 @@ from code_blocks import (
     linear_activation,
     sigmoid_activation,
     relu_activation,
+    elu_activation,
     scale_clip_op
 )
 
@@ -42,7 +43,7 @@ def generate(actor, output_path=None):
     biases = []
     for i in range(n_layers):
         w = actor.trunk[2 * i].weight.detach().numpy()
-        b = actor.trunk[2 * i].weight.detach().numpy()
+        b = actor.trunk[2 * i].bias.detach().numpy()
         if i != n_layers - 1:
             weights.append(w)
             biases.append(b)
@@ -169,6 +170,7 @@ def generate(actor, output_path=None):
     source += linear_activation
     source += sigmoid_activation
     source += relu_activation
+    source += elu_activation
     source += scale_clip_op
     ## the network evaluation function
     source += structure
@@ -197,5 +199,5 @@ if __name__ == '__main__':
     actor = DiagGaussianActor(obs_dim=18, action_dim=4, hidden_dim=64, hidden_depth=2,
                               log_std_bounds=[-5., 2.])  # hard coded for drone controllers.
 
-    actor.load_state_dict(torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/Quadrotor-v1/sac/sac_baseline/1/best_actor.pth'))
+    actor.load_state_dict(torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/Quadrotor-v1/sac/sac_correct_size2/1/best_actor.pth'))
     generate(actor, '../deploy/network_evaluate.c')
