@@ -15,7 +15,7 @@ from environments.quadrotor import QuadrotorEnv
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='speder_no_orth', type=str)
+    parser.add_argument("--dir", default='speder_scale', type=str)
     parser.add_argument("--alg", default="speder")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="Quadrotor-v1")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
@@ -34,6 +34,9 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     env = gym.make(args.env)
+    from gym.wrappers.transform_reward import TransformReward
+    env = TransformReward(env, lambda r: 50. * r)
+
     eval_env = gym.make(args.env)
     env.seed(args.seed)
     eval_env.seed(args.seed)
