@@ -4,6 +4,7 @@ import gym
 import argparse
 import os
 import datetime
+import yaml
 
 from tensorboardX import SummaryWriter
 
@@ -12,12 +13,15 @@ from train.agent.sac import sac_agent
 from train.agent.feature_sac import feature_sac_agent
 from environments.quadrotor import QuadrotorEnv
 
+root_dir = os.path.dirname(os.path.abspath(__file__))
+
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='speder_scale', type=str)
-    parser.add_argument("--alg", default="speder")  # Alg name (sac, feature_sac)
-    parser.add_argument("--env", default="Quadrotor-v1")  # Environment name
+    parser.add_argument("--dir", default='sac_with_rescale_init_state_1825', type=str)
+    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
+    parser.add_argument("--env", default="Quadrotor-v2")  # Environment name
+    parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=float)  # Time steps initial random policy is used
     parser.add_argument("--eval_freq", default=2e4, type=int)  # How often (time steps) we evaluate
@@ -33,11 +37,18 @@ if __name__ == "__main__":
     parser.add_argument("--extra_feature_steps", default=3, type=int)
     args = parser.parse_args()
 
-    env = gym.make(args.env)
+    # load env params
+    params_path = root_dir + '/environments/config/' + args.env_params_name
+    yaml_stream = open(params_path, 'r')
+    params = yaml.load(yaml_stream, Loader=yaml.Loader)
+    
+    env = gym.make(args.env, **params['variant']["env_param"])
     from gym.wrappers.transform_reward import TransformReward
-    env = TransformReward(env, lambda r: 50. * r)
+    env = TransformReward(env, lambda r: 10. * r)
 
-    eval_env = gym.make(args.env)
+
+    params['variant']["env_param"]['init_random_state'] = False
+    eval_env = gym.make(args.env, **params['variant']["env_param"])
     env.seed(args.seed)
     eval_env.seed(args.seed)
     # max_length = env._max_episode_steps
@@ -166,8 +177,8 @@ if __name__ == "__main__":
 
     print('Total time cost {:.4g}s.'.format(timer.time_cost()))
 
-    torch.save(agent.actor.state_dict(), 'last_actor.pth')
-    torch.save(agent.critic.state_dict(), 'last_critic.pth')
+    torch.save(agent.actor.state_dict(), os.path.join(log_path, 'last_actor.pth'))
+    torch.save(agent.critic.state_dict(), os.path.join(log_path, 'last_critic.pth'))
     if args.alg != 'sac':
-        torch.save(agent.feature_phi.state_dict(), 'last_feature_phi.pth')
-        torch.save(agent.feature_mu.state_dict(), 'last_feature_mu.pth')
+        torch.save(agent.feature_phi.state_dict(), os.path.join(log_path, 'last_feature_phi.pth'))
+        torch.save(agent.feature_mu.state_dict(), os.path.join(log_path, 'last_feature_mu.pth'))

@@ -224,7 +224,7 @@ class QuadrotorDynamics(object):
         self.thrusts = deepcopy(thrusts)
 
     # generate a random state (meters, meters/sec, radians/sec)
-    def random_state(self, box, vel_max=15.0, omega_max=2 * np.pi):
+    def random_state(self, box=0.2, vel_max=1.5, omega_max=0.2 * np.pi, rpy=10./180. * np.pi):
         pos = np.random.uniform(low=-box, high=box, size=(3,))
 
         vel = np.random.uniform(low=-vel_max, high=vel_max, size=(3,))
@@ -597,12 +597,8 @@ def compute_reward_weighted(dynamics, goal, action, dt, crashed, time_remain, re
     ##################################################
     ## log to create a sharp peak at the goal
     dist = np.linalg.norm(goal - dynamics.pos)
-    loss_pos = rew_coeff["pos"] * (rew_coeff["pos_log_weight"] * np.log(dist + rew_coeff["pos_offset"]) + rew_coeff[
+    loss_pos = - rew_coeff["pos"] * (rew_coeff["pos_log_weight"] * np.log(dist + rew_coeff["pos_offset"]) + rew_coeff[
         "pos_linear_weight"] * dist)
-    # loss_pos = dist
-
-    # dynamics_pos = dynamics.pos
-    # print('dynamics.pos', dynamics.pos)
 
     ##################################################
     ## penalize altitude above this threshold
@@ -611,9 +607,9 @@ def compute_reward_weighted(dynamics, goal, action, dt, crashed, time_remain, re
 
     ##################################################
     # penalize amount of control effort
-    loss_effort = rew_coeff["effort"] * np.linalg.norm(action)
+    loss_effort = - rew_coeff["effort"] * np.linalg.norm(action)
     dact = action - action_prev
-    loss_act_change = rew_coeff["action_change"] * (dact[0] ** 2 + dact[1] ** 2 + dact[2] ** 2 + dact[3] ** 2) ** 0.5
+    loss_act_change = - rew_coeff["action_change"] * (dact[0] ** 2 + dact[1] ** 2 + dact[2] ** 2 + dact[3] ** 2) ** 0.5
 
     ##################################################
     ## loss velocity
@@ -628,42 +624,43 @@ def compute_reward_weighted(dynamics, goal, action, dt, crashed, time_remain, re
     # loss_vel_proj = - rew_coeff["vel_proj"] * dist * vel_proj
 
     # loss_vel_proj = 0. 
-    loss_vel = rew_coeff["vel"] * np.linalg.norm(dynamics.vel)
+    loss_vel = - rew_coeff["vel"] * np.linalg.norm(dynamics.vel)
 
     ##################################################
     ## Loss orientation
-    loss_orient = -rew_coeff["orient"] * dynamics.rot[2, 2]
-    loss_yaw = -rew_coeff["yaw"] * dynamics.rot[0, 0]
+    r, p, y = t3d.taitbryan.mat2euler(dynamics.rot)
+    # loss_orient = -rew_coeff["orient"] * dynamics.rot[2, 2]
+    loss_yaw = - rew_coeff["yaw"] * y ** 2
     # Projection of the z-body axis to z-world axis
     # Negative, because the larger the projection the smaller the loss (i.e. the higher the reward)
-    rot_cos = ((dynamics.rot[0, 0] + dynamics.rot[1, 1] + dynamics.rot[2, 2]) - 1.) / 2.
+    # rot_cos = ((dynamics.rot[0, 0] + dynamics.rot[1, 1] + dynamics.rot[2, 2]) - 1.) / 2.
     # We have to clip since rotation matrix falls out of orthogonalization from time to time
-    loss_rotation = rew_coeff["rot"] * np.arccos(np.clip(rot_cos, -1., 1.))  # angle = arccos((trR-1)/2) See: [6]
-    loss_attitude = rew_coeff["attitude"] * np.arccos(np.clip(dynamics.rot[2, 2], -1., 1.))
+    # loss_rotation = rew_coeff["rot"] * np.arccos(np.clip(rot_cos, -1., 1.))  # angle = arccos((trR-1)/2) See: [6]
+    # loss_attitude = rew_coeff["attitude"] * np.arccos(np.clip(dynamics.rot[2, 2], -1., 1.))
 
     ##################################################
     ## Loss for constant uncontrolled rotation around vertical axis
     # loss_spin_z  = rew_coeff["spin_z"]  * abs(dynamics.omega[2])
     # loss_spin_xy = rew_coeff["spin_xy"] * np.linalg.norm(dynamics.omega[:2])
     # loss_spin = rew_coeff["spin"] * np.linalg.norm(dynamics.omega) 
-    loss_spin = rew_coeff["spin"] * (dynamics.omega[0] ** 2 + dynamics.omega[1] ** 2 + dynamics.omega[2] ** 2) ** 0.5
+    # loss_spin = rew_coeff["spin"] * (dynamics.omega[0] ** 2 + dynamics.omega[1] ** 2 + dynamics.omega[2] ** 2) ** 0.5
 
     ##################################################
     ## loss crash
-    loss_crash = rew_coeff["crash"] * float(crashed)
+    loss_crash = - rew_coeff["crash"] * float(crashed)
 
     # reward = -dt * np.sum([loss_pos, loss_effort, loss_alt, loss_vel_proj, loss_crash])
     # rew_info = {'rew_crash': -loss_crash, 'rew_altitude': -loss_alt, 'rew_action': -loss_effort, 'rew_pos': -loss_pos, 'rew_vel_proj': -loss_vel_proj}
 
-    reward = -dt * np.sum([
+    reward = dt * np.sum([
         loss_pos,
         loss_effort,
         loss_crash,
-        loss_orient,
+        # loss_orient,
         loss_yaw,
-        loss_rotation,
-        loss_attitude,
-        loss_spin,
+        # loss_rotation,
+        # loss_attitude,
+        # loss_spin,
         # loss_spin_z,
         # loss_spin_xy,
         loss_act_change,
@@ -675,11 +672,11 @@ def compute_reward_weighted(dynamics, goal, action, dt, crashed, time_remain, re
         'rew_pos': -loss_pos,
         'rew_action': -loss_effort,
         'rew_crash': -loss_crash,
-        "rew_orient": -loss_orient,
+        # "rew_orient": -loss_orient,
         "rew_yaw": -loss_yaw,
-        "rew_rot": -loss_rotation,
-        "rew_attitude": -loss_attitude,
-        "rew_spin": -loss_spin,
+        # "rew_rot": -loss_rotation,
+        # "rew_attitude": -loss_attitude,
+        # "rew_spin": -loss_spin,
         # "rew_spin_z": -loss_spin_z,
         # "rew_spin_xy": -loss_spin_xy,
         # "rew_act_change": -loss_act_change,
@@ -761,9 +758,9 @@ class QuadrotorEnvV2(gym.Env):
         ## PARAMS
         self.max_init_vel = 1.  # m/s
         self.max_init_omega = 0.2 * np.pi  # rad/s
-        # self.pitch_max = 1. #rad
-        # self.roll_max = 1.  #rad
-        # self.yaw_max = np.pi   #rad
+        self.pitch_max = 10. / 180. * np.pi #rad
+        self.roll_max = 10. / 180. * np.pi  #rad
+        self.yaw_max = 30. / 180. * np.pi   #rad
 
         self.room_box = np.array(
             [[-self.room_size, -self.room_size, 0], [self.room_size, self.room_size, self.room_size]])
@@ -968,16 +965,8 @@ class QuadrotorEnvV2(gym.Env):
         ################################################################################
         ## CONTROL
         if self.raw_control:
-            if self.dim_mode == '1D':  # Z axis only
-                self.controller = VerticalControl(self.dynamics, zero_action_middle=self.raw_control_zero_middle)
-            elif self.dim_mode == '2D':  # X and Z axes only
-                self.controller = VertPlaneControl(self.dynamics, zero_action_middle=self.raw_control_zero_middle)
-            elif self.dim_mode == '3D':
-                self.controller = RawControl(self.dynamics, zero_action_middle=self.raw_control_zero_middle)
-            else:
-                raise ValueError('QuadEnv: Unknown dimensionality mode %s' % self.dim_mode)
+            self.controller = RawControl(self.dynamics, zero_action_middle=self.raw_control_zero_middle)
         else:
-            # self.controller = NonlinearPositionController(self.dynamics, tf_control=self.tf_control)
             raise NotImplementedError # TODO:temp fix
 
         ################################################################################
@@ -1472,26 +1461,27 @@ class QuadrotorEnvV2(gym.Env):
                 rotation = np.array(((c, 0., -s), (0., 1., 0.), (s, 0., c)))
             else:
                 # It already sets the state internally
-                _, vel, rotation, omega = self.dynamics.random_state(box=self.room_size, vel_max=self.max_init_vel,
-                                                                     omega_max=self.max_init_omega)
-                # _, vel, rotation, omega = self.dynamics.pitch_roll_restricted_random_state(
-                #         box=self.room_size, 
-                #         vel_max=self.max_init_vel, 
-                #         omega_max=self.max_init_omega,
-                #         pitch_max=self.pitch_max,
-                #         roll_max=self.roll_max,
-                #         yaw_max=self.yaw_max)
+                # _, vel, rotation, omega = self.dynamics.random_state(box=self.room_size, vel_max=self.max_init_vel,
+                #                                                      omega_max=self.max_init_omega)
+                _, vel, rotation, omega = self.dynamics.pitch_roll_restricted_random_state(
+                        box=self.room_size, 
+                        vel_max=self.max_init_vel, 
+                        omega_max=self.max_init_omega,
+                        pitch_max=self.pitch_max,
+                        roll_max=self.roll_max,
+                        yaw_max=self.yaw_max)
         else:
             ## INIT HORIZONTALLY WITH 0 VEL and OMEGA
+            pos = self.goal
             vel, omega = npa(0, 0, 0), npa(0, 0, 0)
 
             if self.dim_mode == '1D' or self.dim_mode == '2D':
                 rotation = np.eye(3)
             else:
                 # make sure we're sort of pointing towards goal (for mellinger controller)
-                rotation = randyaw()
-                while np.dot(rotation[:, 0], to_xyhat(-pos)) < 0.5:
-                    rotation = randyaw()
+                rotation = np.eye(3)
+                # while np.dot(rotation[:, 0], to_xyhat(-pos)) < 0.5:
+                #     rotation = randyaw()
 
         # Setting the generated state
         # print("QuadEnv: init: pos/vel/rot/omega:", pos, vel, rotation, omega)
