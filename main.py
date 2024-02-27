@@ -19,9 +19,9 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='speder_v2_debug_change_net_add_sq', type=str)
-    parser.add_argument("--alg", default="spederv2")  # Alg name (sac, feature_sac)
-    parser.add_argument("--env", default="Pendulum-v1")  # Environment name
+    parser.add_argument("--dir", default='sac_debug_done', type=str)
+    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
+    parser.add_argument("--env", default="Quadrotor-v2")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=float)  # Time steps initial random policy is used
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         params = yaml.load(yaml_stream, Loader=yaml.Loader)
         env = gym.make(args.env, **params['variant']["env_param"])
         from gym.wrappers.transform_reward import TransformReward
-        env = TransformReward(env, lambda r: 10. * r)
+        env = TransformReward(env, lambda r: np.exp(10. * r))
         params['variant']["env_param"]['init_random_state'] = False
         eval_env = gym.make(args.env, **params['variant']["env_param"])
 
@@ -141,6 +141,11 @@ if __name__ == "__main__":
         # Train agent after collecting sufficient data
         if t >= args.start_timesteps:
             info = agent.train(replay_buffer, batch_size=args.batch_size)
+
+            if (t+1) % 1000 == 0: # add more frequent logging for train stats.
+                for key, value in info.items():
+                    summary_writer.add_scalar(f'info/{key}', value, t + 1)
+                summary_writer.flush()
 
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True

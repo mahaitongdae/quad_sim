@@ -240,7 +240,10 @@ class QuadrotorDynamics(object):
         # self.set_state(pos, vel, rot, omega)
 
     # generate a random state (meters, meters/sec, radians/sec)
-    def pitch_roll_restricted_random_state(self, box, vel_max=15.0, omega_max=2 * np.pi, pitch_max=0.5, roll_max=0.5,
+    def pitch_roll_restricted_random_state(self, box=0.02, vel_max=1.5, 
+                                           omega_max=0.2 * np.pi, 
+                                           pitch_max=0.5, 
+                                           roll_max=0.5,
                                            yaw_max=3.14):
         pos = np.random.uniform(low=-box, high=box, size=(3,))
 
@@ -1379,7 +1382,7 @@ class QuadrotorEnvV2(gym.Env):
                                                    self.time_remain,
                                                    rew_coeff=self.rew_coeff, action_prev=self.actions[1])
         self.tick += 1
-        done = self.tick > self.ep_len  # or self.crashed
+        done = self.tick > self.ep_len or self.judge_done()
         sv = self.state_vector(self)
 
         self.traj_count += int(done)
@@ -1388,6 +1391,24 @@ class QuadrotorEnvV2(gym.Env):
         # print('vel', sv[3], sv[4], sv[5])
         # print(sv, reward, done, rew_info)
         return sv, reward, done, {'rewards': rew_info}
+    
+    def judge_done(self, pos_limits = 0.2,
+                         roll_pitch_limits = 75. / 180. * np.pi,
+                         vel_limits = 10.,
+                         omega_limits = 10.):
+        done = False
+        roll, pitch, _ = t3d.taitbryan.mat2euler(self.dynamics.rot)
+        if np.abs(self.dynamics.pos - self.goal).max() > pos_limits:
+            return True
+        elif np.abs(roll) > roll_pitch_limits or np.abs(pitch) > roll_pitch_limits:
+            return True
+        elif np.linalg.norm(self.dynamics.omega) > omega_limits:
+            return True
+        elif np.linalg.norm(self.dynamics.vel) > vel_limits:
+            return True
+        else:
+            return False
+            
 
     def resample_dynamics(self):
         """

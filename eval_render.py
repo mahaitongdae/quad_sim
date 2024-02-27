@@ -3,7 +3,6 @@ import numpy as np
 # from envs.env_helper import *
 import argparse
 import os
-from main import ENV_CONFIG
 import torch
 from train.agent.feature_sac import feature_sac_agent
 from train.agent.sac import sac_agent
@@ -14,15 +13,15 @@ import gym
 root_dir = os.path.dirname(os.path.abspath(__file__))
 
 def eval(log_path, ):
-    with open(os.path.join(log_path, 'train_params.pkl'), 'rb') as f:        
-        kwargs = pkl.load(f)
-    env_name = kwargs['env']
+    # with open(os.path.join(log_path, 'train_params.pkl'), 'rb') as f:        
+    #     kwargs = pkl.load(f)
+    # env_name = kwargs['env']
     
-    if 'env_params' in kwargs.keys():
-        pass
-    else:
-        env_params_name = os.path.join(root_dir, 'environments/config/sac_baseline_randomize_t2w15_35.yml')
-    
+    # if 'env_params' in kwargs.keys():
+    #     pass
+    # else:
+    env_params_name = 'sac_baseline_randomize_t2w15_35.yml'
+
     # if "Quadrotor" in args.env:
     env = 'Quadrotor-v2'
     params_path = root_dir + '/environments/config/' + env_params_name
@@ -33,12 +32,12 @@ def eval(log_path, ):
     env = TransformReward(env, lambda r: 10. * r)
 
 
-    actor = DiagGaussianActor(obs_dim=kwargs['obs_space_dim'][0],
-                              action_dim=kwargs['action_dim'],
-                              hidden_dim=kwargs['hidden_dim'],
+    actor = DiagGaussianActor(obs_dim=18,
+                              action_dim=4,
+                              hidden_dim=64,
                               hidden_depth=2,
                               log_std_bounds=[-5., 2.])
-    
+    actor.load_state_dict(torch.load(log_path+"/best_actor.pth", map_location=torch.device('cpu')))
     done = False
     state = env.reset()
     env.render()
@@ -58,4 +57,4 @@ def eval(log_path, ):
 
 
 if __name__ == '__main__':
-    eval("tbd")
+    eval("log/Quadrotor-v2/sac/sac_with_rescale_init_state_1825/1")
