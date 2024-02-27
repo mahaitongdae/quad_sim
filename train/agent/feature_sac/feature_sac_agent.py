@@ -380,6 +380,42 @@ class SPEDERAgent(MLEFeatureAgent):
             # 'r_loss': r_loss.mean().item()
         }
 
+class SPEDERAgentV2(MLEFeatureAgent):
+    """
+    V2 follows eq (9) in Ren. 2023
+    """
+
+    def feature_step(self, batch):
+        """
+		Feature learning step
+
+		KL between two gaussian p1 and p2:
+
+		log sigma_2 - log sigma_1 + sigma_1^2 (mu_1 - mu_2)^2 / 2 sigma_2^2 - 0.5
+		"""
+
+        # loss
+        phi = self.feature_phi(batch.state, batch.action)
+        mu = self.feature_mu(batch.next_state)
+        model_learning_loss1 = - 2. * torch.sum(phi * mu, dim=-1)
+        model_learning_loss2 = torch.mean(torch.sum(torch.matmul(phi, mu.T), dim=1))
+        model_learning_loss = model_learning_loss1 + model_learning_loss2
+        model_learning_loss = model_learning_loss.mean()
+
+        loss = model_learning_loss
+
+        self.feature_optimizer.zero_grad()
+        loss.backward()
+        self.feature_optimizer.step()
+
+        return {
+            'feature_loss': loss.item(),
+            'model_learning_loss1': model_learning_loss1.mean().item(),
+            'model_learning_loss2': model_learning_loss2.mean().item(),
+            'model_learning_loss': model_learning_loss.item(),
+            # 's_loss': s_loss.mean().item(),
+            # 'r_loss': r_loss.mean().item()
+        }
 
 class TransferAgent(SPEDERAgent):
 

@@ -18,7 +18,7 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='sac_with_rescale_init_state_1825', type=str)
+    parser.add_argument("--dir", default='sac_reduced_actor_lr_3e-5_exp', type=str)
     parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="Quadrotor-v2")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
@@ -44,7 +44,7 @@ if __name__ == "__main__":
     
     env = gym.make(args.env, **params['variant']["env_param"])
     from gym.wrappers.transform_reward import TransformReward
-    env = TransformReward(env, lambda r: 10. * r)
+    env = TransformReward(env, lambda r: 0.2 * np.exp(10. * r))
 
 
     params['variant']["env_param"]['init_random_state'] = False
@@ -87,6 +87,10 @@ if __name__ == "__main__":
         kwargs['extra_feature_steps'] = args.extra_feature_steps
         kwargs['feature_dim'] = args.feature_dim
         agent = feature_sac_agent.SPEDERAgent(**kwargs)
+    elif args.alg == 'spederv2':
+        kwargs['extra_feature_steps'] = args.extra_feature_steps
+        kwargs['feature_dim'] = args.feature_dim
+        agent = feature_sac_agent.SPEDERAgentV2(**kwargs)
 
     replay_buffer = buffer.ReplayBuffer(state_dim, action_dim)
 

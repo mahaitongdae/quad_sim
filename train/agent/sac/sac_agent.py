@@ -77,7 +77,7 @@ class SACAgent(object):
 		
 		 # optimizers
 		self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
-																						lr=lr,
+																						lr=3e-5,
 																						betas=[0.9, 0.999])
 
 		self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
