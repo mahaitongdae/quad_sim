@@ -398,21 +398,21 @@ class SPEDERAgentV2(MLEFeatureAgent):
         phi = self.feature_phi(batch.state, batch.action)
         mu = self.feature_mu(batch.next_state)
         model_learning_loss1 = - 2. * torch.sum(phi * mu, dim=-1)
-        model_learning_loss2 = torch.mean(torch.sum(torch.matmul(phi, mu.T), dim=1))
+        model_learning_loss2 = torch.mean(torch.matmul(phi, mu.T)  ** 2, dim=1)
         model_learning_loss = model_learning_loss1 + model_learning_loss2
         model_learning_loss = model_learning_loss.mean()
 
-        loss = model_learning_loss
+        # loss = model_learning_loss
 
         self.feature_optimizer.zero_grad()
-        loss.backward()
+        model_learning_loss.backward()
         self.feature_optimizer.step()
 
         return {
-            'feature_loss': loss.item(),
+            'feature_loss': model_learning_loss.item(),
             'model_learning_loss1': model_learning_loss1.mean().item(),
             'model_learning_loss2': model_learning_loss2.mean().item(),
-            'model_learning_loss': model_learning_loss.item(),
+            # 'model_learning_loss': model_learning_loss.item(),
             # 's_loss': s_loss.mean().item(),
             # 'r_loss': r_loss.mean().item()
         }

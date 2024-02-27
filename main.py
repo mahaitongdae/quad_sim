@@ -5,6 +5,7 @@ import argparse
 import os
 import datetime
 import yaml
+import pickle as pkl
 
 from tensorboardX import SummaryWriter
 
@@ -18,9 +19,9 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='sac_reduced_actor_lr_3e-5_exp', type=str)
-    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
-    parser.add_argument("--env", default="Quadrotor-v2")  # Environment name
+    parser.add_argument("--dir", default='speder_v2_debug_change_net_add_sq', type=str)
+    parser.add_argument("--alg", default="spederv2")  # Alg name (sac, feature_sac)
+    parser.add_argument("--env", default="Pendulum-v1")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=float)  # Time steps initial random policy is used
@@ -38,17 +39,22 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # load env params
-    params_path = root_dir + '/environments/config/' + args.env_params_name
-    yaml_stream = open(params_path, 'r')
-    params = yaml.load(yaml_stream, Loader=yaml.Loader)
+    if "Quadrotor" in args.env:
+        params_path = root_dir + '/environments/config/' + args.env_params_name
+        yaml_stream = open(params_path, 'r')
+        params = yaml.load(yaml_stream, Loader=yaml.Loader)
+        env = gym.make(args.env, **params['variant']["env_param"])
+        from gym.wrappers.transform_reward import TransformReward
+        env = TransformReward(env, lambda r: 10. * r)
+        params['variant']["env_param"]['init_random_state'] = False
+        eval_env = gym.make(args.env, **params['variant']["env_param"])
+
+    else:
+        env = gym.make(args.env)
+        eval_env = gym.make(args.env)
+
     
-    env = gym.make(args.env, **params['variant']["env_param"])
-    from gym.wrappers.transform_reward import TransformReward
-    env = TransformReward(env, lambda r: 0.2 * np.exp(10. * r))
-
-
-    params['variant']["env_param"]['init_random_state'] = False
-    eval_env = gym.make(args.env, **params['variant']["env_param"])
+   
     env.seed(args.seed)
     eval_env.seed(args.seed)
     # max_length = env._max_episode_steps
@@ -57,6 +63,13 @@ if __name__ == "__main__":
     # dir_name =
     log_path = f'log/{args.env}/{args.alg}/{args.dir}/{args.seed}'
     summary_writer = SummaryWriter(log_path)
+
+    # Store training parameters
+    kwargs = vars(args)
+    if "Quadrotor" in args.env:
+        kwargs.update({'env_params': params['variant']["env_param"]})
+    with open(os.path.join(log_path, 'train_params.pkl'), 'wb') as fp:
+        pkl.dump(kwargs, fp)
 
     # set seeds
     torch.manual_seed(args.seed)

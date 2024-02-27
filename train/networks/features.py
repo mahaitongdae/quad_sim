@@ -73,5 +73,5 @@ class MLPFeatureMu(nn.Module):
         # x = torch.cat([state, action], axis=-1)
         z = F.elu(self.l1(state))
         z = F.elu(self.l2(z))
-        logit = torch.arctan(self.l3(z))
+        logit = 1 / self.feature_dim * torch.arctan(self.l3(z))
         return logit
