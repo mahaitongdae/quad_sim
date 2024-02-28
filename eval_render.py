@@ -47,14 +47,15 @@ def eval(log_path, ):
         state = state.unsqueeze(0)
         dist = actor(state)
         action = dist.mean
+        print(action)
         assert action.ndim == 2 and action.shape[0] == 1
         return to_np(action[0])
 
     while not done:
-        env.step(action=select_action(actor, state))
+        state ,_, done, _ = env.step(action=select_action(actor, state))
         env.render()
 
 
 
 if __name__ == '__main__':
-    eval("log/Quadrotor-v2/sac/sac_with_rescale_init_state_1825/1")
+    eval("log/Quadrotor-v2/sac/sac_lipsnet/1")

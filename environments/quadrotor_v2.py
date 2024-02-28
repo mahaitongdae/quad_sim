@@ -475,11 +475,6 @@ class QuadrotorDynamics(object):
         ## Computing position
         self.pos = self.pos + dt * self.vel
 
-        # Clipping if met the obstacle and nullify velocities (not sure what to do about accelerations)
-        self.pos_before_clip = self.pos.copy()
-        self.pos = np.clip(self.pos, a_min=self.room_box[0], a_max=self.room_box[1])
-        # self.vel[np.equal(self.pos, self.pos_before_clip)] = 0.
-
         ## Computing accelerations
         acc = [0, 0, -GRAV] + (1.0 / self.mass) * np.matmul(self.rot, (thrust + rotor_drag_force))
         # acc[mask] = 0. #If we leave the room - stop accelerating
@@ -711,9 +706,9 @@ class QuadrotorEnvV2(gym.Env):
     def __init__(self, dynamics_params="defaultquad", dynamics_change=None,
                  dynamics_randomize_every=None, dynamics_randomization_ratio=0.,
                  dynamics_randomization_ratio_params=None,
-                 raw_control=True, raw_control_zero_middle=True, dim_mode='3D', tf_control=False, sim_freq=500.,
+                 raw_control=True, raw_control_zero_middle=True, dim_mode='3D', tf_control=False, sim_freq=240.,
                  sim_steps=1,
-                 obs_repr="xyz_vxyz_rot_omega", ep_time=1, obstacles_num=0, room_size=10, init_random_state=False,
+                 obs_repr="xyz_vxyz_rot_omega", ep_time=1, obstacles_num=0, room_size=0.02, init_random_state=False,
                  rew_coeff=None, sense_noise=None, verbose=False, gravity=GRAV, resample_goal=False):
         np.seterr(under='ignore')
         """
@@ -771,7 +766,7 @@ class QuadrotorEnvV2(gym.Env):
         ## WARN: If you
         # size of the box from which initial position will be randomly sampled
         # if box_scale > 1.0 then it will also growevery episode
-        self.box = 0.1
+        self.box = 0.02
         self.box_scale = 1.0  # scale the initialbox by this factor eache episode
 
         ## Statistics vars
@@ -1372,17 +1367,19 @@ class QuadrotorEnvV2(gym.Env):
             self.crashed = self.obstacles.detect_collision(self.dynamics)
         else:
             self.crashed = self.dynamics.pos[2] <= self.dynamics.arm
-        self.crashed = self.crashed or not np.array_equal(self.dynamics.pos,
-                                                          np.clip(self.dynamics.pos,
-                                                                  a_min=self.room_box[0],
-                                                                  a_max=self.room_box[1]))
+        # self.crashed = self.crashed or not np.array_equal(self.dynamics.pos,
+        #                                                   np.clip(self.dynamics.pos,
+        #                                                           a_min=self.room_box[0],
+        #                                                           a_max=self.room_box[1]))
 
         self.time_remain = self.ep_len - self.tick
         reward, rew_info = compute_reward_weighted(self.dynamics, self.goal, action, self.dt, self.crashed,
                                                    self.time_remain,
                                                    rew_coeff=self.rew_coeff, action_prev=self.actions[1])
         self.tick += 1
-        done = self.tick > self.ep_len or self.judge_done()
+        crashed = self.judge_done()
+        done = self.tick > self.ep_len or crashed
+        reward = -1. if crashed else reward
         sv = self.state_vector(self)
 
         self.traj_count += int(done)
@@ -1392,7 +1389,7 @@ class QuadrotorEnvV2(gym.Env):
         # print(sv, reward, done, rew_info)
         return sv, reward, done, {'rewards': rew_info}
     
-    def judge_done(self, pos_limits = 0.2,
+    def judge_done(self, pos_limits = 0.4,
                          roll_pitch_limits = 75. / 180. * np.pi,
                          vel_limits = 10.,
                          omega_limits = 10.):
@@ -1400,12 +1397,12 @@ class QuadrotorEnvV2(gym.Env):
         roll, pitch, _ = t3d.taitbryan.mat2euler(self.dynamics.rot)
         if np.abs(self.dynamics.pos - self.goal).max() > pos_limits:
             return True
-        elif np.abs(roll) > roll_pitch_limits or np.abs(pitch) > roll_pitch_limits:
-            return True
-        elif np.linalg.norm(self.dynamics.omega) > omega_limits:
-            return True
-        elif np.linalg.norm(self.dynamics.vel) > vel_limits:
-            return True
+        # elif np.abs(roll) > roll_pitch_limits or np.abs(pitch) > roll_pitch_limits:
+        #     return True
+        # elif np.linalg.norm(self.dynamics.omega) > omega_limits:
+        #     return True
+        # elif np.linalg.norm(self.dynamics.vel) > vel_limits:
+        #     return True
         else:
             return False
             

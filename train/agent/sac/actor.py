@@ -63,12 +63,18 @@ class SquashedNormal(pyd.transformed_distribution.TransformedDistribution):
 class DiagGaussianActor(nn.Module):
   """torch.distributions implementation of an diagonal Gaussian policy."""
   def __init__(self, obs_dim, action_dim, hidden_dim, hidden_depth,
-                log_std_bounds):
+                log_std_bounds, lipsnet=True):
     super().__init__()
 
     self.log_std_bounds = log_std_bounds
-    self.trunk = util.mlp(obs_dim, hidden_dim, 2 * action_dim,
-                            hidden_depth)
+    if not lipsnet:
+      self.trunk = util.mlp(obs_dim, hidden_dim, 2 * action_dim,
+                              hidden_depth)
+    else:
+      from train.utils.lipsnet import LipsNet
+      self.trunk = LipsNet(f_sizes=[obs_dim,64,64, 2 * action_dim], f_hid_nonliear=nn.ReLU, f_out_nonliear=nn.Identity,
+                  global_lips=False, k_init=1, k_sizes=[obs_dim,32,1], k_hid_act=nn.Tanh, k_out_act=nn.Softplus,
+                  loss_lambda=0.1, eps=1e-4, squash_action=True)
 
     self.outputs = dict()
     self.apply(util.weight_init)

@@ -8,7 +8,7 @@ variant:
     tf_control: False
     dim_mode: 3D
     init_random_state: True
-    sim_freq: 500 #Hz
+    sim_freq: 240 #Hz
     sim_steps: 1
     ep_time: 3
     sense_noise: default

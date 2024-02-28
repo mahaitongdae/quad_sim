@@ -19,7 +19,7 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='sac_debug_done', type=str)
+    parser.add_argument("--dir", default='sac_lipsnet', type=str)
     parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="Quadrotor-v2")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
@@ -45,7 +45,7 @@ if __name__ == "__main__":
         params = yaml.load(yaml_stream, Loader=yaml.Loader)
         env = gym.make(args.env, **params['variant']["env_param"])
         from gym.wrappers.transform_reward import TransformReward
-        env = TransformReward(env, lambda r: np.exp(10. * r))
+        env = TransformReward(env, lambda r: 50. * r )
         params['variant']["env_param"]['init_random_state'] = False
         eval_env = gym.make(args.env, **params['variant']["env_param"])
 
