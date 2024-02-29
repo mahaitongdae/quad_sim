@@ -34,9 +34,10 @@ def eval(log_path, ):
 
     actor = DiagGaussianActor(obs_dim=18,
                               action_dim=4,
-                              hidden_dim=64,
+                              hidden_dim=128,
                               hidden_depth=2,
-                              log_std_bounds=[-5., 2.])
+                              log_std_bounds=[-5., 2.],
+                              hidden_activation=torch.nn.Tanh())
     actor.load_state_dict(torch.load(log_path+"/best_actor.pth", map_location=torch.device('cpu')))
     done = False
     state = env.reset()
