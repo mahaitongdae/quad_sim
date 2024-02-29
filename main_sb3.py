@@ -10,7 +10,6 @@ import pickle as pkl
 from tensorboardX import SummaryWriter
 
 from stable_baselines3 import SAC, PPO
-
 from train.utils import util, buffer
 from train.agent.sac import sac_agent
 from train.agent.feature_sac import feature_sac_agent
@@ -47,7 +46,7 @@ if __name__ == "__main__":
         params = yaml.load(yaml_stream, Loader=yaml.Loader)
         env = gym.make(args.env, **params['variant']["env_param"])
         from gym.wrappers.transform_reward import TransformReward
-        env = TransformReward(env, lambda r: np.exp(10. * r))
+        env = TransformReward(env, lambda r: 50. * r )
         params['variant']["env_param"]['init_random_state'] = False
         eval_env = gym.make(args.env, **params['variant']["env_param"])
 
@@ -99,6 +98,3 @@ if __name__ == "__main__":
     model.learn(total_timesteps=3000000)  # Typically not enough
     model.save(os.path.join(log_path, 'sac_no_damping_add_spin'))
 
-    
-
-    

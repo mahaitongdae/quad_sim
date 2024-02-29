@@ -75,7 +75,7 @@ float elu(float num) {
 	if (num > 0) {
 		return num;
 	} else {
-		exp(num) - 1;
+		return exp(num) - 1;
 	}
 }
 

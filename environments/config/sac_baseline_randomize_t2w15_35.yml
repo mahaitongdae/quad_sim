@@ -3,7 +3,7 @@ variant:
   env: QuadrotorEnv
   env_param:
     dynamics_params: crazyflie_t2w_18_25
-    dynamics_randomize_every: 1
+    dynamics_randomize_every: 5
     raw_control: True
     tf_control: False
     dim_mode: 3D
