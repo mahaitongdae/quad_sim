@@ -11,7 +11,7 @@ from train.agent.sac.actor import DiagGaussianActor
 
 import socket
 
-S2R_HIDDEN_DIM = 256
+S2R_HIDDEN_DIM = 64
 
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
