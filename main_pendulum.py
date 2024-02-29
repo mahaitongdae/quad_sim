@@ -19,9 +19,9 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='sac_hid_256', type=str)
-    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
-    parser.add_argument("--env", default="Quadrotor-v2")  # Environment name
+    parser.add_argument("--dir", default='spederv3_no_feature_step', type=str)
+    parser.add_argument("--alg", default="spederv3")  # Alg name (sac, feature_sac)
+    parser.add_argument("--env", default="Pendulum-v1")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=float)  # Time steps initial random policy is used
@@ -50,7 +50,9 @@ if __name__ == "__main__":
         eval_env = gym.make(args.env, **params['variant']["env_param"])
 
     else:
+        from gym.wrappers import TransformReward
         env = gym.make(args.env)
+        env = TransformReward(env, lambda r: 0.2 * r)
         eval_env = gym.make(args.env)
 
     
@@ -100,14 +102,10 @@ if __name__ == "__main__":
         kwargs['extra_feature_steps'] = args.extra_feature_steps
         kwargs['feature_dim'] = args.feature_dim
         agent = feature_sac_agent.SPEDERAgent(**kwargs)
-    elif args.alg == 'spederv2':
-        kwargs['extra_feature_steps'] = args.extra_feature_steps
-        kwargs['feature_dim'] = args.feature_dim
-        agent = feature_sac_agent.SPEDERAgentV2(**kwargs)
     elif args.alg == 'spederv3':
         kwargs['extra_feature_steps'] = args.extra_feature_steps
         kwargs['feature_dim'] = args.feature_dim
-        agent = feature_sac_agent.SPEDERAgentV3(**kwargs)
+        agent = feature_sac_agent.SPEDERAgentV2(**kwargs)
 
     replay_buffer = buffer.ReplayBuffer(state_dim, action_dim)
 

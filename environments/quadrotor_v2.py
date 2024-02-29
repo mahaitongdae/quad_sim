@@ -826,6 +826,10 @@ class QuadrotorEnvV2(gym.Env):
             self.dynamics_params_def = None
             self.dyn_sampler = sample_crazyflie_thrust2weight_20_50
             self.dynamics_params = self.dyn_sampler()
+        elif dynamics_params == "crazyflie_t2w_fix":
+            self.dynamics_params_def = None
+            self.dyn_sampler = sample_crazyflie_thrust2weight_fix
+            self.dynamics_params = self.dyn_sampler()
         else:
             ## Setting the quad dynamics params
             if isinstance(dynamics_params, str):

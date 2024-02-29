@@ -11,7 +11,7 @@ from train.agent.sac.actor import DiagGaussianActor
 
 import socket
 
-S2R_HIDDEN_DIM = 64
+S2R_HIDDEN_DIM = 256
 
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
@@ -69,7 +69,7 @@ class SACAgent(object):
 			action_dim=action_dim,
 			hidden_dim=S2R_HIDDEN_DIM,
 			hidden_depth=2,
-			log_std_bounds=[-5., 2.], 
+			log_std_bounds=[-20., 1.],
 		).to(self.device)
 		self.log_alpha = torch.tensor(np.log(alpha)).to(self.device)
 		self.log_alpha.requires_grad = True

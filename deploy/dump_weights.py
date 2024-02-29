@@ -108,7 +108,7 @@ def generate(actor, output_path=None):
 				output_0[i] += state_array[j] * layer_0_weight[j][i];
 			}
 			output_0[i] += layer_0_bias[i];
-			output_0[i] = tanhf(output_0[i]);
+			output_0[i] = elu(output_0[i]);
 		}
 	"""
     for_loops.append(input_for_loop)
@@ -119,7 +119,7 @@ def generate(actor, output_path=None):
 		for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
 			output_""" + str(n) + """[i] = 0;
 			for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
-				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[j][i];
+				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[i][j];
 			}
 			output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
 			output_""" + str(n) + """[i] = elu(output_""" + str(n) + """[i]);
@@ -133,7 +133,7 @@ def generate(actor, output_path=None):
 		for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
 			output_""" + str(n) + """[i] = 0;
 			for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
-				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[j][i];
+				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[i][j];
 			}
 			output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
 		}
@@ -199,5 +199,5 @@ if __name__ == '__main__':
     actor = DiagGaussianActor(obs_dim=18, action_dim=4, hidden_dim=64, hidden_depth=2,
                               log_std_bounds=[-5., 2.],lipsnet=False)  # hard coded for drone controllers.
 
-    actor.load_state_dict(torch.load('/home/mht/sim_to_real/training/log/Quadrotor-v2/sac/sac_debug_env/1/best_actor.pth'))
+    actor.load_state_dict(torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/Quadrotor-v2/sac/sac_lipsnet/1/best_actor.pth'))
     generate(actor, '../deploy/network_evaluate.c')

@@ -81,14 +81,39 @@ class MLP(nn.Module):
 	def forward(self, x):
 		return self.trunk(x)
 
+class MLPwithPhi(nn.Module):
+	def __init__(self,
+								input_dim,
+								hidden_dim,
+				 				feature_dim,
+								output_dim,
+								hidden_depth,
+								output_mod=None,
+				 				final_layer_require_grad=False):
+		super().__init__()
+		self.trunk = mlp(input_dim, hidden_dim, output_dim, hidden_depth,
+											output_mod)
+		self.final_linear = nn.Linear(feature_dim, output_dim)
+		if not final_layer_require_grad:
+			self.final_linear.bias.requires_grad(False)
+		self.apply(weight_init)
 
-def mlp(input_dim, hidden_dim, output_dim, hidden_depth, output_mod=None):
+	def forward(self, x):
+		feature = self.trunk(x)
+		output = self.final_linear(feature)
+		return output
+
+	def get_feature(self, x):
+		return self.trunk(x)
+
+
+def mlp(input_dim, hidden_dim, output_dim, hidden_depth, hidden_activation=nn.ELU(inplace=True), output_mod=None):
 	if hidden_depth == 0:
 		mods = [nn.Linear(input_dim, output_dim)]
 	else:
-		mods = [nn.Linear(input_dim, hidden_dim), nn.ELU(inplace=True)]
+		mods = [nn.Linear(input_dim, hidden_dim), hidden_activation] # inplace=True
 		for i in range(hidden_depth - 1):
-			mods += [nn.Linear(hidden_dim, hidden_dim), nn.ELU(inplace=True)]
+			mods += [nn.Linear(hidden_dim, hidden_dim), hidden_activation] # inplace=True
 		mods.append(nn.Linear(hidden_dim, output_dim))
 	if output_mod is not None:
 		mods.append(output_mod)

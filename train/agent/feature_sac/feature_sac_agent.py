@@ -67,6 +67,57 @@ class Critic(nn.Module):
 
         return q1, q2
 
+class CriticwithPhi(nn.Module):
+    """
+	Critic with random fourier features
+	"""
+
+    def __init__(
+            self,
+            input_dim,
+            feature_dim,
+            num_noise=20,
+            hidden_dim=256,
+            final_layer_grad=True,
+    ):
+        super().__init__()
+
+        # Q1
+        self.l1 = nn.Linear(input_dim, hidden_dim)  # random feature
+        self.l2 = nn.Linear(hidden_dim, hidden_dim)
+        self.l3 = nn.Linear(hidden_dim, feature_dim)
+        self.final_l1 = nn.Linear(feature_dim, 1)
+
+        # Q2
+        self.l4 = nn.Linear(input_dim, hidden_dim)  # random feature
+        self.l5 = nn.Linear(hidden_dim, hidden_dim)
+        self.l6 = nn.Linear(hidden_dim, feature_dim)
+        self.final_l2 = nn.Linear(feature_dim, 1)
+
+        if not final_layer_grad:
+            self.final_l1.requires_grad(False)
+            self.final_l2.requires_grad(False)
+
+    def get_feature(self, state, action):
+        x = torch.cat([state, action], axis=-1)
+        q1 = F.elu(self.l1(x))  # F.relu(self.l1(x))
+        # q1 = q1.reshape([batch_size, self.num_noise, -1]).mean(dim=1)
+        q1 = F.elu(self.l2(q1))  # F.relu(self.l2(q1))
+        q1 = F.tanh(self.l3(q1))
+
+        q2 = F.elu(self.l4(x))  # F.relu(self.l4(x))
+        # q2 = q2.reshape([batch_size, self.num_noise, -1]).mean(dim=1)
+        q2 = F.elu(self.l5(q2))  # F.relu(self.l5(q2))
+        q2 = F.tanh(self.l3(q2))
+
+        return q1, q2
+
+    def forward(self, state, action):
+        f1, f2 = self.get_feature(state, action)
+        q1 = self.final_l1(f1)
+        q2 = self.final_l2(f2)
+        return q1, q2
+
 
 class LineaCritic(nn.Module):
     """
@@ -137,13 +188,6 @@ class MLEFeatureAgent(SACAgent):
         self.use_feature_target = use_feature_target
         self.extra_feature_steps = extra_feature_steps
 
-        # self.encoder = Encoder(state_dim=state_dim,
-        # 		action_dim=action_dim, feature_dim=feature_dim).to(device)
-        # self.decoder = Decoder(state_dim=state_dim,
-        # 		feature_dim=feature_dim).to(device)
-        # self.f = GaussianFeature(state_dim=state_dim,
-        # 		action_dim=action_dim, feature_dim=feature_dim).to(device)
-
         self.feature_phi = MLPFeaturePhi(state_dim=state_dim, action_dim=action_dim, hidden_dim=hidden_dim, feature_dim=feature_dim).to(device)
         self.feature_mu = MLPFeatureMu(state_dim=state_dim, hidden_dim=hidden_dim, feature_dim=feature_dim).to(device)
 
@@ -165,51 +209,12 @@ class MLEFeatureAgent(SACAgent):
             self.critic.parameters(), lr=lr, betas=[0.9, 0.999])
 
     def feature_step(self, batch):
-        """
-		Feature learning step
-
-		KL between two gaussian p1 and p2:
-
-		log sigma_2 - log sigma_1 + sigma_1^2 (mu_1 - mu_2)^2 / 2 sigma_2^2 - 0.5
-		"""
-        # # ML loss
-        # z = self.encoder.sample(
-        # 	batch.state, batch.action, batch.next_state)
-        # x, r = self.decoder(z)
-        # s_loss = 0.5 * F.mse_loss(x, batch.next_state)
-        # r_loss = 0.5 * F.mse_loss(r, batch.reward)
-        # ml_loss = r_loss + s_loss
-        #
-        # # KL loss
-        # mean1, log_std1 = self.encoder(
-        # 	batch.state, batch.action, batch.next_state)
-        # mean2, log_std2 = self.f(batch.state, batch.action)
-        # var1 = (2 * log_std1).exp()
-        # var2 = (2 * log_std2).exp()
-        # kl_loss = log_std2 - log_std1 + 0.5 * (var1 + (mean1-mean2)**2) / var2 - 0.5
-        #
-        # loss = (ml_loss + kl_loss).mean()
-
         # loss
         phi = self.feature_phi(batch.state, batch.action)
         mu = self.feature_mu(batch.next_state)
         model_learning_loss1 = torch.neg(torch.log(torch.sum(phi * mu, dim=-1)))
         loss = model_learning_loss1.mean()
         phi_norm = torch.norm(phi, dim=-1).mean()
-        # model_learning_loss2 = 1 / (2 * self.feature_dim) * torch.sum(phi * phi, dim=-1)
-        # model_learning_loss = model_learning_loss1 # + model_learning_loss2
-        # model_learning_loss = model_learning_loss.mean()
-
-        # penalty
-        # phi_vec = phi[:, :, None] # shape: [batch, phidim, 1]
-        # phi_vec_t = phi[:, None, :] # shape [batch, 1, phi_dim]
-        # identity = torch.einsum('bij,bjk->bik', phi_vec, phi_vec_t)
-        # # batch matrix multiplication, more can see https://pytorch.org/docs/stable/generated/torch.einsum.html#torch.einsum
-        # identity = torch.mean(identity, dim=0)
-        # penalty_factor = torch.tensor(1e10, device=device)
-        # penalty_loss = penalty_factor * F.mse_loss(identity, torch.eye(self.feature_dim).to(device) / self.feature_dim)
-
-        # loss = model_learning_loss #  + penalty_loss
 
         self.feature_optimizer.zero_grad()
         loss.backward()
@@ -218,12 +223,6 @@ class MLEFeatureAgent(SACAgent):
         return {
             'feature_loss': loss.item(),
             'phi_norm': phi_norm.item()
-            # 'model_learning_loss1': model_learning_loss1.mean().item(),
-            # 'model_learning_loss2': model_learning_loss2.mean().item(),
-            # 'model_learning_loss': model_learning_loss.item(),
-            # 'penalty_loss': penalty_loss.item(),
-            # 's_loss': s_loss.mean().item(),
-            # 'r_loss': r_loss.mean().item()
         }
 
     def update_actor_and_alpha(self, batch):
@@ -415,6 +414,121 @@ class SPEDERAgentV2(MLEFeatureAgent):
             # 'model_learning_loss': model_learning_loss.item(),
             # 's_loss': s_loss.mean().item(),
             # 'r_loss': r_loss.mean().item()
+        }
+
+class SPEDERAgentV3(SACAgent):
+    """
+	SAC with VAE learned latent features
+	"""
+
+    def __init__(
+            self,
+            state_dim,
+            action_dim,
+            action_space,
+            lr=1e-4,
+            discount=0.99,
+            target_update_period=2,
+            tau=0.005,
+            alpha=0.1,
+            auto_entropy_tuning=True,
+            hidden_dim=256,
+            feature_tau=0.001,
+            feature_dim=256,  # latent feature dim
+            use_feature_target=True,
+            extra_feature_steps=1,
+            linear_critic=False
+    ):
+
+        super().__init__(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            action_space=action_space,
+            lr=lr,
+            tau=tau,
+            alpha=alpha,
+            discount=discount,
+            target_update_period=target_update_period,
+            auto_entropy_tuning=auto_entropy_tuning,
+            hidden_dim=hidden_dim,
+        )
+
+        self.feature_dim = feature_dim
+        self.feature_tau = feature_tau
+        self.use_feature_target = use_feature_target
+        self.extra_feature_steps = extra_feature_steps
+
+        # self.feature_phi = MLPFeaturePhi(state_dim=state_dim, action_dim=action_dim, hidden_dim=hidden_dim, feature_dim=feature_dim).to(device)
+        self.feature_mu = MLPFeatureMu(state_dim=state_dim, hidden_dim=hidden_dim, feature_dim=feature_dim).to(device)
+
+        if use_feature_target:
+            # self.feature_phi_target = copy.deepcopy(self.feature_phi)
+            self.feature_mu_target = self.feature_mu
+        self.feature_optimizer = torch.optim.Adam(
+            list(self.feature_mu.parameters()),
+            lr=lr,
+            weight_decay=1e-2
+        )
+
+        self.critic = CriticwithPhi(input_dim=state_dim + action_dim, feature_dim=feature_dim,hidden_dim=hidden_dim,)
+        self.critic_target = copy.deepcopy(self.critic)
+        self.critic_optimizer = torch.optim.Adam(
+            self.critic.parameters(), lr=lr, betas=[0.9, 0.999])
+
+    def feature_step(self, batch):
+        # loss
+        phi, _ = self.critic.get_feature(batch.state, batch.action)
+        mu = self.feature_mu(batch.next_state)
+        model_learning_loss1 = - 2. * torch.sum(phi * mu, dim=-1)
+        model_learning_loss2 = torch.mean(torch.matmul(phi, mu.T) ** 2, dim=1)
+        model_learning_loss = model_learning_loss1 + model_learning_loss2
+        model_learning_loss = model_learning_loss.mean()
+
+        # loss = model_learning_loss
+
+        self.feature_optimizer.zero_grad()
+        model_learning_loss.backward()
+        self.feature_optimizer.step()
+
+        return {
+            'feature_loss': model_learning_loss.item(),
+            'model_learning_loss1': model_learning_loss1.mean().item(),
+            'model_learning_loss2': model_learning_loss2.mean().item(),
+        }
+
+    def update_feature_target(self):
+        for param, target_param in zip(self.feature_mu.parameters(), self.feature_mu_target.parameters()):
+            target_param.data.copy_(self.feature_tau * param.data + (1 - self.feature_tau) * target_param.data)
+
+    def train(self, buffer, batch_size):
+        """
+		One train step
+		"""
+        self.steps += 1
+        batch = buffer.sample(batch_size)
+
+        # Feature step
+        # for _ in range(self.extra_feature_steps + 1):
+        #     batch = buffer.sample(batch_size)
+        #     feature_info = self.feature_step(batch)
+
+        #     # Update the feature network if needed
+        #     if self.use_feature_target:
+        #         self.update_feature_target()
+
+        # Acritic step
+        critic_info = self.critic_step(batch)
+
+        # Actor and alpha step
+        actor_info = self.update_actor_and_alpha(batch)
+
+        # Update the frozen target models
+        self.update_target()
+
+        return {
+            # **feature_info,
+            **critic_info,
+            **actor_info,
         }
 
 class TransferAgent(SPEDERAgent):

@@ -19,8 +19,8 @@ root_dir = os.path.dirname(os.path.abspath(__file__))
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='sac_hid_256', type=str)
-    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
+    parser.add_argument("--dir", default='spederv3_try', type=str)
+    parser.add_argument("--alg", default="spederv3")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="Quadrotor-v2")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
