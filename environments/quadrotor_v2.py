@@ -640,7 +640,7 @@ def compute_reward_weighted(dynamics, goal, action, dt, crashed, time_remain, re
     ## Loss for constant uncontrolled rotation around vertical axis
     # loss_spin_z  = rew_coeff["spin_z"]  * abs(dynamics.omega[2])
     # loss_spin_xy = rew_coeff["spin_xy"] * np.linalg.norm(dynamics.omega[:2])
-    # loss_spin = rew_coeff["spin"] * np.linalg.norm(dynamics.omega) 
+    loss_spin = rew_coeff["spin"] * np.linalg.norm(dynamics.omega)
     # loss_spin = rew_coeff["spin"] * (dynamics.omega[0] ** 2 + dynamics.omega[1] ** 2 + dynamics.omega[2] ** 2) ** 0.5
 
     ##################################################
@@ -658,7 +658,7 @@ def compute_reward_weighted(dynamics, goal, action, dt, crashed, time_remain, re
         loss_yaw,
         # loss_rotation,
         # loss_attitude,
-        # loss_spin,
+        loss_spin,
         # loss_spin_z,
         # loss_spin_xy,
         loss_act_change,
