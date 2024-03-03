@@ -55,14 +55,14 @@ class Gymnasium2GymWrapper(gymnasium.core.Wrapper):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='sac_hid_256', type=str)
+    parser.add_argument("--dir", default='debug_norm_omega', type=str)
     parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=25e3, type=float)  # Time steps initial random policy is used
     parser.add_argument("--eval_freq", default=2e4, type=int)  # How often (time steps) we evaluate
-    parser.add_argument("--max_timesteps", default=8e5, type=float)  # Max time steps to run environment
+    parser.add_argument("--max_timesteps", default=16e5, type=float)  # Max time steps to run environment
     parser.add_argument("--expl_noise", default=0.1)  # Std of Gaussian exploration noise
     parser.add_argument("--batch_size", default=256, type=int)  # Batch size for both actor and critic
     parser.add_argument("--hidden_dim", default=256, type=int)  # Network hidden dims
