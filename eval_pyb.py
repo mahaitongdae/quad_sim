@@ -63,7 +63,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
                               hidden_depth=2,
                               log_std_bounds=[-20., 1.])
     actor.load_state_dict(
-        torch.load('/home/mht/sim_to_real/training/log/hover-aviary-v0/sac/debug_norm_omega/1/best_actor.pth',
+        torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/hover-aviary-v0/spederv3/speder_drones/1/best_actor.pth',
                    map_location=torch.device('cpu')))
     logger = LoggerV1(logging_freq_hz=int(env.CTRL_FREQ),
                       env = env,

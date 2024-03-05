@@ -8,14 +8,14 @@ from train.utils import util
 
 from train.agent.sac.critic import DoubleQCritic
 from train.agent.sac.actor import DiagGaussianActor
-
+from train import CUDA_DEVICE_WORKSTATION
 import socket
 
 S2R_HIDDEN_DIM = 64
 
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
-	device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+	device = torch.device(CUDA_DEVICE_WORKSTATION if torch.cuda.is_available() else "cpu")
 else:
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

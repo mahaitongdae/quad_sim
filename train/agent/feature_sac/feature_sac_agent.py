@@ -9,13 +9,14 @@ from train.utils.util import unpack_batch  # , # RunningMeanStd
 from train.networks.policy import GaussianPolicy
 from train.networks.vae import Encoder, Decoder, GaussianFeature
 from train.agent.sac.sac_agent import SACAgent
+from train.agent.sac.critic import CriticwithPhi
 from train.networks.features import MLPFeatureMu, MLPFeaturePhi
-
+from train import CUDA_DEVICE_WORKSTATION
 import socket
 
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
-    device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+    device = torch.device(CUDA_DEVICE_WORKSTATION if torch.cuda.is_available() else "cpu")
 else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -65,57 +66,6 @@ class Critic(nn.Module):
         q2 = F.elu(self.l5(q2))  # F.relu(self.l5(q2))
         q2 = self.l3(q2)
 
-        return q1, q2
-
-class CriticwithPhi(nn.Module):
-    """
-	Critic with random fourier features
-	"""
-
-    def __init__(
-            self,
-            input_dim,
-            feature_dim,
-            num_noise=20,
-            hidden_dim=256,
-            final_layer_grad=True,
-    ):
-        super().__init__()
-
-        # Q1
-        self.l1 = nn.Linear(input_dim, hidden_dim)  # random feature
-        self.l2 = nn.Linear(hidden_dim, hidden_dim)
-        self.l3 = nn.Linear(hidden_dim, feature_dim)
-        self.final_l1 = nn.Linear(feature_dim, 1)
-
-        # Q2
-        self.l4 = nn.Linear(input_dim, hidden_dim)  # random feature
-        self.l5 = nn.Linear(hidden_dim, hidden_dim)
-        self.l6 = nn.Linear(hidden_dim, feature_dim)
-        self.final_l2 = nn.Linear(feature_dim, 1)
-
-        if not final_layer_grad:
-            self.final_l1.requires_grad(False)
-            self.final_l2.requires_grad(False)
-
-    def get_feature(self, state, action):
-        x = torch.cat([state, action], axis=-1)
-        q1 = F.elu(self.l1(x))  # F.relu(self.l1(x))
-        # q1 = q1.reshape([batch_size, self.num_noise, -1]).mean(dim=1)
-        q1 = F.elu(self.l2(q1))  # F.relu(self.l2(q1))
-        q1 = F.tanh(self.l3(q1))
-
-        q2 = F.elu(self.l4(x))  # F.relu(self.l4(x))
-        # q2 = q2.reshape([batch_size, self.num_noise, -1]).mean(dim=1)
-        q2 = F.elu(self.l5(q2))  # F.relu(self.l5(q2))
-        q2 = F.tanh(self.l3(q2))
-
-        return q1, q2
-
-    def forward(self, state, action):
-        f1, f2 = self.get_feature(state, action)
-        q1 = self.final_l1(f1)
-        q2 = self.final_l2(f2)
         return q1, q2
 
 
@@ -470,7 +420,7 @@ class SPEDERAgentV3(SACAgent):
             weight_decay=1e-2
         )
 
-        self.critic = CriticwithPhi(input_dim=state_dim + action_dim, feature_dim=feature_dim,hidden_dim=hidden_dim,)
+        self.critic = CriticwithPhi(input_dim=state_dim + action_dim, feature_dim=feature_dim,hidden_dim=hidden_dim,).to(device)
         self.critic_target = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(
             self.critic.parameters(), lr=lr, betas=[0.9, 0.999])

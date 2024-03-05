@@ -12,7 +12,8 @@ import socket
 
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
-	device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+	from train import CUDA_DEVICE_WORKSTATION
+	device = torch.device(CUDA_DEVICE_WORKSTATION if torch.cuda.is_available() else "cpu")
 else:
 	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 

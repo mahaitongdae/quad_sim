@@ -24,7 +24,8 @@ class ReplayBuffer(object):
 
 		device_name = socket.gethostname()
 		if device_name.startswith('naliseas'):
-			self.device = torch.device("cuda:1" if torch.cuda.is_available() else "cpu")
+			from train import CUDA_DEVICE_WORKSTATION
+			self.device = torch.device(CUDA_DEVICE_WORKSTATION if torch.cuda.is_available() else "cpu")
 		else:
 			self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 		

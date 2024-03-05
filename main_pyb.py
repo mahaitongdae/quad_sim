@@ -55,8 +55,8 @@ class Gymnasium2GymWrapper(gymnasium.core.Wrapper):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='debug_norm_omega', type=str)
-    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
+    parser.add_argument("--dir", default='speder_drones', type=str)
+    parser.add_argument("--alg", default="spederv3")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
     parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
@@ -218,9 +218,10 @@ if __name__ == "__main__":
                 torch.save(best_critic, os.path.join(log_path, 'best_critic.pth'))
 
                 if args.alg != 'sac':
-                    best_feature_phi = agent.feature_phi.state_dict()
+                    if not args.alg.endswith('v3'):
+                        best_feature_phi = agent.feature_phi.state_dict()
+                        torch.save(best_feature_phi, os.path.join(log_path, 'best_feature_phi.pth'))
                     best_feature_mu = agent.feature_mu.state_dict()
-                    torch.save(best_feature_phi, os.path.join(log_path, 'best_feature_phi.pth'))
                     torch.save(best_feature_mu, os.path.join(log_path, 'best_feature_mu.pth'))
             
             if t >= int(args.max_timesteps) - 5:
@@ -230,9 +231,10 @@ if __name__ == "__main__":
                 torch.save(best_critic, os.path.join(log_path, 'terminal_critic_{}.pth'.format(t)))
 
                 if args.alg != 'sac':
-                    best_feature_phi = agent.feature_phi.state_dict()
+                    if not args.alg.endswith('v3'):
+                        best_feature_phi = agent.feature_phi.state_dict()
+                        torch.save(best_feature_phi, os.path.join(log_path, 'terminal_phi_{}.pth'.format(t)))
                     best_feature_mu = agent.feature_mu.state_dict()
-                    torch.save(best_feature_phi, os.path.join(log_path, 'terminal_phi_{}.pth'.format(t)))
                     torch.save(best_feature_mu, os.path.join(log_path, 'terminal_mu_{}.pth'.format(t)))
 
             print('Step {}. Steps per sec: {:.4g}.'.format(t + 1, steps_per_sec))
@@ -244,5 +246,6 @@ if __name__ == "__main__":
     torch.save(agent.actor.state_dict(), os.path.join(log_path, 'last_actor.pth'))
     torch.save(agent.critic.state_dict(), os.path.join(log_path, 'last_critic.pth'))
     if args.alg != 'sac':
-        torch.save(agent.feature_phi.state_dict(), os.path.join(log_path, 'last_feature_phi.pth'))
+        if not args.alg.endswith('v3'):
+            torch.save(agent.feature_phi.state_dict(), os.path.join(log_path, 'last_feature_phi.pth'))
         torch.save(agent.feature_mu.state_dict(), os.path.join(log_path, 'last_feature_mu.pth'))
