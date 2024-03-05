@@ -427,7 +427,7 @@ class SPEDERAgentV3(SACAgent):
 
     def feature_step(self, batch):
         # loss
-        phi, _ = self.critic.get_feature(batch.state, batch.action)
+        phi = self.critic.get_feature(batch.state, batch.action)
         mu = self.feature_mu(batch.next_state)
         model_learning_loss1 = - 2. * torch.sum(phi * mu, dim=-1)
         model_learning_loss2 = torch.mean(torch.matmul(phi, mu.T) ** 2, dim=1)
@@ -457,26 +457,25 @@ class SPEDERAgentV3(SACAgent):
         self.steps += 1
         batch = buffer.sample(batch_size)
 
-        # Feature step
-        # for _ in range(self.extra_feature_steps + 1):
-        #     batch = buffer.sample(batch_size)
-        #     feature_info = self.feature_step(batch)
-
-        #     # Update the feature network if needed
-        #     if self.use_feature_target:
-        #         self.update_feature_target()
-
         # Acritic step
         critic_info = self.critic_step(batch)
 
         # Actor and alpha step
         actor_info = self.update_actor_and_alpha(batch)
 
+        # Feature step
+        for _ in range(self.extra_feature_steps + 1):
+            feature_info = self.feature_step(batch)
+
+            # Update the feature network if needed
+            if self.use_feature_target:
+                self.update_feature_target()
+
         # Update the frozen target models
         self.update_target()
 
         return {
-            # **feature_info,
+            **feature_info,
             **critic_info,
             **actor_info,
         }
