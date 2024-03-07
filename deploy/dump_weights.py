@@ -105,7 +105,7 @@ def generate(actor, output_path=None):
 		for (int i = 0; i < structure[0][0]; i++) {
 			output_0[i] = 0;
 			for (int j = 0; j < structure[0][1]; j++) {
-				output_0[i] += state_array[j] * layer_0_weight[j][i];
+				output_0[i] += state_array[j] * layer_0_weight[i][j];
 			}
 			output_0[i] += layer_0_bias[i];
 			output_0[i] = elu(output_0[i]);
@@ -196,8 +196,8 @@ if __name__ == '__main__':
     import torch
     from train.agent.sac.actor import DiagGaussianActor
 
-    actor = DiagGaussianActor(obs_dim=18, action_dim=4, hidden_dim=64, hidden_depth=2,
+    actor = DiagGaussianActor(obs_dim=20, action_dim=4, hidden_dim=64, hidden_depth=2,
                               log_std_bounds=[-5., 2.],lipsnet=False)  # hard coded for drone controllers.
 
-    actor.load_state_dict(torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/Quadrotor-v2/sac/sac_lipsnet/1/best_actor.pth'))
+    actor.load_state_dict(torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/hover-aviary-v0/sac/debug_norm_omega/1/best_actor.pth', map_location=torch.device('cpu')))
     generate(actor, '../deploy/network_evaluate.c')
