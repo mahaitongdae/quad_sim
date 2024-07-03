@@ -75,22 +75,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # load env params
-    if "Quadrotor" in args.env:
-        params_path = root_dir + '/environments/config/' + args.env_params_name
-        yaml_stream = open(params_path, 'r')
-        params = yaml.load(yaml_stream, Loader=yaml.Loader)
-        env = gym.make(args.env, **params['variant']["env_param"])
-        from gym.wrappers.transform_reward import TransformReward
-        env = TransformReward(env, lambda r: 50. * r )
-        params['variant']["env_param"]['init_random_state'] = False
-        eval_env = gym.make(args.env, **params['variant']["env_param"])
 
-    else:
-        env = gymnasium.make(args.env)
-        env = gymnasium.wrappers.transform_reward.TransformReward(env, lambda r: 0.2 * r)
-        eval_env = gymnasium.make(args.env)
-        env = Gymnasium2GymWrapper(env)
-        eval_env = Gymnasium2GymWrapper(eval_env)
+    env = gymnasium.make(args.env)
+    env = gymnasium.wrappers.transform_reward.TransformReward(env, lambda r: 0.2 * r)
+    eval_env = gymnasium.make(args.env)
+    env = Gymnasium2GymWrapper(env)
+    eval_env = Gymnasium2GymWrapper(eval_env)
     
    
     # env.seed(args.seed)
@@ -104,8 +94,6 @@ if __name__ == "__main__":
 
     # Store training parameters
     kwargs = vars(args)
-    if "Quadrotor" in args.env:
-        kwargs.update({'env_params': params['variant']["env_param"]})
     with open(os.path.join(log_path, 'train_params.pkl'), 'wb') as fp:
         pkl.dump(kwargs, fp)
 
