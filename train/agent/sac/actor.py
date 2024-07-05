@@ -100,50 +100,8 @@ class DiagGaussianActor(nn.Module):
         return dist
 
 
-class DifferentiableMellinger(nn.Module):
-    cf_mass = 0.027
-    massThrust = 132000
-    INT16_MAX = 65536
 
-    def __init__(self, ):
-        super().__init__(self)
-        self.integral_error = torch.zeros([3, ])
-        # XY positions
-        self.kp_xy = torch.nn.Parameter(torch.tensor(0.4, requires_grad=True))
-        self.ki_xy = torch.nn.Parameter(torch.tensor(0.2, requires_grad=True))
-        self.kd_xy = torch.nn.Parameter(torch.tensor(0.05, requires_grad=True))
-        # Z position
-        self.kp_z = torch.nn.Parameter(torch.tensor(1.25, requires_grad=True))
-        self.ki_z = torch.nn.Parameter(torch.tensor(0.4, requires_grad=True))
-        self.kd_z = torch.nn.Parameter(torch.tensor(0.05, requires_grad=True))
-        # Attitude
-        self.kR_xy = torch.nn.Parameter(torch.tensor(70000., requires_grad=True))
-        self.kw_xy = torch.nn.Parameter(torch.tensor(20000., requires_grad=True))
-        self.ki_m_xy = torch.nn.Parameter(torch.tensor(0., requires_grad=True))
 
-        self.kR_z = torch.nn.Parameter(torch.tensor(60000., requires_grad=True))
-        self.kw_z = torch.nn.Parameter(torch.tensor(12000., requires_grad=True))
-        self.ki_m_z = torch.nn.Parameter(torch.tensor(500., requires_grad=True))
-
-        self.i_range_xy = 2.0
-        self.i_range_z = 0.4
-        self.i_range_m_xy = 1.0
-        self.i_range_m_z = 1500.
-
-        self.i_error_x = torch.tensor(0.)
-        self.i_error_y = torch.tensor(0.)
-        self.i_error_z = torch.tensor(0.)
-        self.i_error_m_x = torch.tensor(0.)
-        self.i_error_m_y = torch.tensor(0.)
-        self.i_error_m_z = torch.tensor(0.)
-
-    def reset(self):
-        self.i_error_x = torch.tensor(0.)
-        self.i_error_y = torch.tensor(0.)
-        self.i_error_z = torch.tensor(0.)
-        self.i_error_m_x = torch.tensor(0.)
-        self.i_error_m_y = torch.tensor(0.)
-        self.i_error_m_z = torch.tensor(0.)
 
 
 
