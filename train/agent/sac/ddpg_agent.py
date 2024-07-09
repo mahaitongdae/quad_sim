@@ -79,13 +79,14 @@ class DDPG(object):
 		# self.target_entropy = -action_dim
 		
 		 # optimizers
-		self.actor_optimizer = torch.optim.Adam(self.actor.parameters(),
-																						lr=3e-5,
-																						betas=[0.9, 0.999])
+		self.actor_optimizer = torch.optim.Adam([{'params': self.actor.P_COEFF_FOR, 'lr': 3e-5},
+												 {'params':self.actor.P_COEFF_TOR, 'lr': 3e-1}],
+												lr=3e-5,
+												betas=[0.9, 0.999])
 
 		self.critic_optimizer = torch.optim.Adam(self.critic.parameters(),
-																							lr=lr,
-																							betas=[0.9, 0.999])
+												 lr=lr,
+												 betas=[0.9, 0.999])
 
 		# self.log_alpha_optimizer = torch.optim.Adam([self.log_alpha],
 		# 																						lr=lr,
@@ -163,7 +164,10 @@ class DDPG(object):
 		actor_loss.backward()
 		self.actor_optimizer.step()
 
+		self.actor.P_COEFF_FOR = torch.nn.Parameter(torch.clamp(self.actor.P_COEFF_FOR, 0.1, torch.inf))
+
 		info = {'actor_loss': actor_loss.item()}
+		info.update(self.actor.get_controller_parameters_dict())
 		# for para in self.actor.parameters():
 		# 	info.update()
 

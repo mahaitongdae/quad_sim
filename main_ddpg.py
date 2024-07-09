@@ -208,12 +208,12 @@ if __name__ == "__main__":
                 torch.save(best_actor, os.path.join(log_path, 'best_actor.pth'))
                 torch.save(best_critic, os.path.join(log_path, 'best_critic.pth'))
 
-                if args.alg != 'sac':
-                    if not args.alg.endswith('v3'):
-                        best_feature_phi = agent.feature_phi.state_dict()
-                        torch.save(best_feature_phi, os.path.join(log_path, 'best_feature_phi.pth'))
-                    best_feature_mu = agent.feature_mu.state_dict()
-                    torch.save(best_feature_mu, os.path.join(log_path, 'best_feature_mu.pth'))
+                # if args.alg != 'sac':
+                #     if not args.alg.endswith('v3'):
+                #         best_feature_phi = agent.feature_phi.state_dict()
+                #         torch.save(best_feature_phi, os.path.join(log_path, 'best_feature_phi.pth'))
+                #     best_feature_mu = agent.feature_mu.state_dict()
+                #     torch.save(best_feature_mu, os.path.join(log_path, 'best_feature_mu.pth'))
             
             if t >= int(args.max_timesteps) - 5:
                 terminal_actor = agent.actor.state_dict()
@@ -221,12 +221,12 @@ if __name__ == "__main__":
                 torch.save(best_actor, os.path.join(log_path, 'terminal_actor_{}.pth'.format(t)))
                 torch.save(best_critic, os.path.join(log_path, 'terminal_critic_{}.pth'.format(t)))
 
-                if args.alg != 'sac':
-                    if not args.alg.endswith('v3'):
-                        best_feature_phi = agent.feature_phi.state_dict()
-                        torch.save(best_feature_phi, os.path.join(log_path, 'terminal_phi_{}.pth'.format(t)))
-                    best_feature_mu = agent.feature_mu.state_dict()
-                    torch.save(best_feature_mu, os.path.join(log_path, 'terminal_mu_{}.pth'.format(t)))
+                # if args.alg != 'sac':
+                #     if not args.alg.endswith('v3'):
+                #         best_feature_phi = agent.feature_phi.state_dict()
+                #         torch.save(best_feature_phi, os.path.join(log_path, 'terminal_phi_{}.pth'.format(t)))
+                #     best_feature_mu = agent.feature_mu.state_dict()
+                #     torch.save(best_feature_mu, os.path.join(log_path, 'terminal_mu_{}.pth'.format(t)))
 
             print('Step {}. Steps per sec: {:.4g}.'.format(t + 1, steps_per_sec))
 
@@ -236,7 +236,7 @@ if __name__ == "__main__":
 
     torch.save(agent.actor.state_dict(), os.path.join(log_path, 'last_actor.pth'))
     torch.save(agent.critic.state_dict(), os.path.join(log_path, 'last_critic.pth'))
-    if args.alg != 'sac':
-        if not args.alg.endswith('v3'):
-            torch.save(agent.feature_phi.state_dict(), os.path.join(log_path, 'last_feature_phi.pth'))
-        torch.save(agent.feature_mu.state_dict(), os.path.join(log_path, 'last_feature_mu.pth'))
+    # if args.alg != 'sac':
+    #     if not args.alg.endswith('v3'):
+    #         torch.save(agent.feature_phi.state_dict(), os.path.join(log_path, 'last_feature_phi.pth'))
+    #     torch.save(agent.feature_mu.state_dict(), os.path.join(log_path, 'last_feature_mu.pth'))

@@ -50,11 +50,11 @@ class DifferentiableMellinger(nn.Module):
         self.ki_m_z = 12000.
 
         self.P_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.kp_xy, self.kp_xy, self.kp_z], requires_grad=True))
-        self.I_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.ki_xy, self.ki_xy, self.ki_z], requires_grad=True))
-        self.D_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.kd_xy, self.kd_xy, self.kd_z], requires_grad=True))
+        self.I_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.ki_xy, self.ki_xy, self.ki_z], requires_grad=False))
+        self.D_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.kd_xy, self.kd_xy, self.kd_z], requires_grad=False))
         self.P_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.kR_xy, self.kR_xy, self.kR_z], requires_grad=True))
-        self.I_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.kw_xy, self.kw_xy, self.kw_z], requires_grad=True))
-        self.D_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.ki_m_xy, self.ki_m_xy, self.ki_m_z], requires_grad=True))
+        self.I_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.kw_xy, self.kw_xy, self.kw_z], requires_grad=False))
+        self.D_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.ki_m_xy, self.ki_m_xy, self.ki_m_z], requires_grad=False))
 
         self.i_range_xy = 2.0
         self.i_range_z = 0.4
@@ -77,6 +77,32 @@ class DifferentiableMellinger(nn.Module):
         def transpose(x):
             return x.T
         self.vec_transpose = torch.vmap(transpose)
+
+    def get_controller_parameters_dict(self):
+        dict = {}
+        xyz_labels = ['x', 'y', 'z']
+        prefix = 'ctrl/'
+        for i, k in enumerate(list(self.P_COEFF_FOR)):
+            para_name = prefix + 'pos/p/' + xyz_labels[i]
+            dict.update({para_name: k.item()})
+        for i, k in enumerate(list(self.I_COEFF_FOR)):
+            para_name = prefix + 'pos/i/' + xyz_labels[i]
+            dict.update({para_name: k.item()})
+        for i, k in enumerate(list(self.I_COEFF_FOR)):
+            para_name = prefix + 'pos/d/' + xyz_labels[i]
+            dict.update({para_name: k.item()})
+        for i, k in enumerate(list(self.P_COEFF_TOR)):
+            para_name = prefix + 'alt/p/' + xyz_labels[i]
+            dict.update({para_name: k.item()})
+        for i, k in enumerate(list(self.I_COEFF_TOR)):
+            para_name = prefix + 'alt/i/' + xyz_labels[i]
+            dict.update({para_name: k.item()})
+        for i, k in enumerate(list(self.I_COEFF_TOR)):
+            para_name = prefix + 'alt/d/' + xyz_labels[i]
+            dict.update({para_name: k.item()})
+
+        return dict
+
 
     def set_device(self, device):
         self.MIXER_MATRIX = self.MIXER_MATRIX.to(device)
@@ -356,3 +382,4 @@ def test_batch_mellinger():
     batched_obs = torch.tensor([obs, obs1])
     policy = DifferentiableMellinger()
     print(policy(batched_obs))
+    print(policy.get_controller_parameters_dict())
