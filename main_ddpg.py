@@ -56,7 +56,7 @@ class Gymnasium2GymWrapper(gymnasium.core.Wrapper):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument("--dir", default='sac_raw_force_input', type=str)
+    parser.add_argument("--dir", default='mellinger', type=str)
     parser.add_argument("--alg", default="ddpg")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
     # parser.add_argument("--env_params_name", default="sac_baseline_randomize_t2w15_35.yml", type=str)

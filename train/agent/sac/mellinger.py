@@ -32,29 +32,46 @@ class DifferentiableMellinger(nn.Module):
         self.CTRL_FREQ = ctrl_freq
         self.MAX_RPM = max_rpm
         self.integral_error = torch.zeros([3, ])
-        # XY positions
-        self.kp_xy = 0.4
-        self.ki_xy = 0.05
-        self.kd_xy = 0.2
-        # Z position
-        self.kp_z = 1.25
-        self.ki_z = 0.05
-        self.kd_z = 0.4
-        # Attitude
-        self.kR_xy = 70000.
-        self.kw_xy = 0.
-        self.ki_m_xy = 20000.
-        # Z Altitude
-        self.kR_z = 60000.
-        self.kw_z = 500.
-        self.ki_m_z = 12000.
 
-        self.P_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.kp_xy, self.kp_xy, self.kp_z], requires_grad=True))
-        self.I_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.ki_xy, self.ki_xy, self.ki_z], requires_grad=False))
-        self.D_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.kd_xy, self.kd_xy, self.kd_z], requires_grad=False))
-        self.P_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.kR_xy, self.kR_xy, self.kR_z], requires_grad=True))
-        self.I_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.kw_xy, self.kw_xy, self.kw_z], requires_grad=False))
-        self.D_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.ki_m_xy, self.ki_m_xy, self.ki_m_z], requires_grad=False))
+        self.kp_xy = torch.nn.Parameter(torch.tensor(0.4, requires_grad=True))
+        self.ki_xy = torch.nn.Parameter(torch.tensor(0.05, requires_grad=False))
+        self.kd_xy = torch.nn.Parameter(torch.tensor(0.2, requires_grad=False))
+        # Z position
+        self.kp_z = torch.nn.Parameter(torch.tensor(1.25, requires_grad=False))
+        self.ki_z = torch.nn.Parameter(torch.tensor(0.05, requires_grad=False))
+        self.kd_z = torch.nn.Parameter(torch.tensor(0.4, requires_grad=False))
+        # Attitude
+        self.kR_xy = torch.nn.Parameter(torch.tensor(70000., requires_grad=True))
+        self.kw_xy = torch.nn.Parameter(torch.tensor(0., requires_grad=False))
+        self.ki_m_xy = torch.nn.Parameter(torch.tensor(20000., requires_grad=False))
+
+        self.kR_z = torch.nn.Parameter(torch.tensor(60000., requires_grad=False))
+        self.kw_z = torch.nn.Parameter(torch.tensor(500., requires_grad=False))
+        self.ki_m_z = torch.nn.Parameter(torch.tensor(12000., requires_grad=False))
+
+        # # XY positions
+        # self.kp_xy = 0.4
+        # self.ki_xy = 0.05
+        # self.kd_xy = 0.2
+        # # Z position
+        # self.kp_z = 1.25
+        # self.ki_z = 0.05
+        # self.kd_z = 0.4
+        # # Attitude
+        # self.kR_xy = 70000.
+        # self.kw_xy = 0.
+        # self.ki_m_xy = 20000.
+        # # Z Altitude
+        # self.kR_z = 60000.
+        # self.kw_z = 500.
+        # self.ki_m_z = 12000.
+        #
+        # self.P_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.kp_xy, self.kp_xy, self.kp_z], requires_grad=True))
+        # self.I_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.ki_xy, self.ki_xy, self.ki_z], requires_grad=False))
+        # self.D_COEFF_FOR = torch.nn.Parameter(torch.tensor([self.kd_xy, self.kd_xy, self.kd_z], requires_grad=False))
+        # self.P_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.kR_xy, self.kR_xy, self.kR_z], requires_grad=True))
+        # self.I_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.kw_xy, self.kw_xy, self.kw_z], requires_grad=False))
+        # self.D_COEFF_TOR = torch.nn.Parameter(torch.tensor([self.ki_m_xy, self.ki_m_xy, self.ki_m_z], requires_grad=False))
 
         self.i_range_xy = 2.0
         self.i_range_z = 0.4
@@ -78,30 +95,14 @@ class DifferentiableMellinger(nn.Module):
             return x.T
         self.vec_transpose = torch.vmap(transpose)
 
-    def get_controller_parameters_dict(self):
-        dict = {}
-        xyz_labels = ['x', 'y', 'z']
-        prefix = 'ctrl/'
-        for i, k in enumerate(list(self.P_COEFF_FOR)):
-            para_name = prefix + 'pos/p/' + xyz_labels[i]
-            dict.update({para_name: k.item()})
-        for i, k in enumerate(list(self.I_COEFF_FOR)):
-            para_name = prefix + 'pos/i/' + xyz_labels[i]
-            dict.update({para_name: k.item()})
-        for i, k in enumerate(list(self.I_COEFF_FOR)):
-            para_name = prefix + 'pos/d/' + xyz_labels[i]
-            dict.update({para_name: k.item()})
-        for i, k in enumerate(list(self.P_COEFF_TOR)):
-            para_name = prefix + 'alt/p/' + xyz_labels[i]
-            dict.update({para_name: k.item()})
-        for i, k in enumerate(list(self.I_COEFF_TOR)):
-            para_name = prefix + 'alt/i/' + xyz_labels[i]
-            dict.update({para_name: k.item()})
-        for i, k in enumerate(list(self.I_COEFF_TOR)):
-            para_name = prefix + 'alt/d/' + xyz_labels[i]
-            dict.update({para_name: k.item()})
+    def projection_on_gains(self):
+        with torch.no_grad():
+            self.kp_xy.clamp_(min=0.1)
+            self.kR_xy.clamp_(min=10000.)
 
-        return dict
+    def get_controller_parameters_dict(self):
+
+        return self.state_dict()
 
 
     def set_device(self, device):
@@ -245,6 +246,13 @@ class DifferentiableMellinger(nn.Module):
         # first 16: xyz_error 3, quat 4, rpy 3, vel_xyz 3, angle_vel_xyz 3 each
         #### then 12: integral error of pos 3, diff error of pos 3, integral error of angle 3, diff error of angle 3
 
+        P_COEFF_FOR = torch.stack([self.kp_xy, self.kp_xy, self.kp_z])
+        I_COEFF_FOR = torch.stack([self.ki_xy, self.ki_xy, self.ki_z])
+        D_COEFF_FOR = torch.stack([self.kd_xy, self.kd_xy, self.kd_z])
+        P_COEFF_TOR = torch.stack([self.kR_xy, self.kR_xy, self.kR_z])
+        I_COEFF_TOR = torch.stack([self.kw_xy, self.kw_xy, self.kw_z])
+        D_COEFF_TOR = torch.stack([self.ki_m_xy, self.ki_m_xy, self.ki_m_z])
+
         # position control
         if len(obs.shape) == 1:
             obs = obs.unsqueeze(0)
@@ -263,9 +271,9 @@ class DifferentiableMellinger(nn.Module):
         # self.integral_pos_e = torch.clip(self.integral_pos_e, -2., 2.)
         # self.integral_pos_e[:, 2] = torch.clip(self.integral_pos_e[:, 2], -0.15, .15)
         #### PID target thrust #####################################
-        target_thrust = torch.multiply(self.P_COEFF_FOR, pos_e) \
-                        + torch.multiply(self.I_COEFF_FOR, integral_pos_error) \
-                        + torch.multiply(self.D_COEFF_FOR, vel_e) + self.gravity # , device=self.de
+        target_thrust = torch.multiply(P_COEFF_FOR, pos_e) \
+                        + torch.multiply(I_COEFF_FOR, integral_pos_error) \
+                        + torch.multiply(D_COEFF_FOR, vel_e) + self.gravity # , device=self.de
         scalar_thrust = torch.clamp(torch.vmap(torch.inner)(target_thrust, cur_rotation[:, :, 2]), 0, torch.inf)
         # thrust_pwm = (torch.sqrt(scalar_thrust / (4 * self.KF)) - self.PWM2RPM_CONST) / self.PWM2RPM_SCALE
         thrust_pwm = self.massThrust * scalar_thrust
@@ -296,10 +304,10 @@ class DifferentiableMellinger(nn.Module):
         # self.integral_rpy_e = torch.clip(self.integral_rpy_e, -1500., 1500.)
         # self.integral_rpy_e[0:2] = torch.clip(self.integral_rpy_e[0:2], -1., 1.)
         #### PID target torques ####################################
-        target_torques = - torch.multiply(self.P_COEFF_TOR, rot_e) \
-                         + torch.multiply(self.D_COEFF_TOR, diff_rpy_error) \
-                         + torch.multiply(self.I_COEFF_TOR, integral_rpy_error)
-        target_torques = torch.clip(target_torques, -3200, 3200)
+        target_torques = - torch.multiply(P_COEFF_TOR, rot_e) \
+                         + torch.multiply(D_COEFF_TOR, diff_rpy_error) \
+                         + torch.multiply(I_COEFF_TOR, integral_rpy_error)
+        target_torques = torch.clip(target_torques, -32000, 32000)
         pwm = thrust_pwm.unsqueeze(1) + torch.matmul(self.MIXER_MATRIX, target_torques.unsqueeze(2)).squeeze()
         pwm = torch.clip(pwm, self.MIN_PWM, self.MAX_PWM) # .squeeze(dim=-1)
         if self.output_type == "pwm":

@@ -3,6 +3,13 @@ import numpy as np
 import torch
 import socket
 
+import cfusdlog
+import matplotlib.pyplot as plt
+import re
+import argparse
+import seaborn as sns
+import pandas as pd
+
 
 Batch = collections.namedtuple(
 	'Batch',
@@ -52,5 +59,32 @@ class ReplayBuffer(object):
 			done=torch.FloatTensor(self.done[ind]).to(self.device),
 		)
 
+class RealDataBuffer(ReplayBuffer):
 
+	def __init__(self, state_dim, action_dim, max_size=int(1e6)):
+		super(RealDataBuffer, self).__init__(state_dim, action_dim, max_size)
+		self.MIXER_MATRIX = np.array([
+			[-.5, .5, 1],
+			[-.5, -.5, -1],
+			[.5, -.5, 1],
+			[.5, .5, -1]
+		])
+
+	def load_usd_data(self, filename):
+		# decode binary log data
+		rawData = cfusdlog.decode(filename)
+		rawData = rawData['fixedFrequency']
+		cmd = rawData['ctrlMel.cmd_thrust']
+		start_idx = np.nonzero(cmd)[0][0]
+		rawData = rawData[start_idx:]
+		xyz = np.hstack([rawData['stateEstimate.x'], rawData['stateEstimate.y'], rawData['stateEstimate.z']]).T
+		rpy = np.hstack([rawData['stabilizer.roll'], rawData['stabilizer.pitch'], rawData['stabilizer.yaw']]).T
+		vxyz = np.hstack([rawData['stateEstimate.vx'], rawData['stateEstimate.vy'], rawData['stateEstimate.vz']]).T
+		rpy_rate = np.hstack([rawData['stateEstimateZ.rateRoll'], rawData['stateEstimateZ.ratePitch'],
+							  rawData['stateEstimateZ.rateYaw']]).T / 1000. # rate in milliradians
+		cmd_before_mix = np.hstack([rawData['ctrlMel.cmd_roll'],
+									rawData['ctrlMel.cmd_pitch'], rawData['ctrl.cmd_yaw']])
+		cmd_after_mix = rawData['ctrlMel.cmd_thrust'] + self.MIXER_MATRIX @ cmd_before_mix
+		action = cmd_after_mix.T / 65535
+		error_x = xyz -
 
