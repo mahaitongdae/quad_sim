@@ -4,7 +4,8 @@ import math
 from torch import nn
 import torch.nn.functional as F
 from torch import distributions as pyd
-
+import sys
+sys.path.append('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim')
 from train.utils import util
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType
@@ -377,11 +378,12 @@ def test_mellinger_controller():
     plt.show()
 
 def test_batch_mellinger():
+   
     from gym_pybullet_drones.envs.single_agent_rl.HoverAviary import HoverAviary
     import matplotlib.pyplot as plt
     import time
     import gymnasium as gym
-    env = gym.make('hover-aviary-v0', gui=False, act=ActionType.PWM,
+    env = gym.make('hover-aviary-v0', gui=True, act=ActionType.PWM,
                    initial_xyzs=np.array([[0.01, 0.01, 1.01]]),
                    initial_rpys=np.array([[0.0, 0.0, 0.0]]), )
 
@@ -391,3 +393,45 @@ def test_batch_mellinger():
     policy = DifferentiableMellinger()
     print(policy(batched_obs))
     print(policy.get_controller_parameters_dict())
+
+def test_pitch_angle():
+    def reformat_to_pid_state(state):
+        return np.hstack([state[:3] + np.array([0, 0, 1]), state[3:7], state[10:16]])
+
+    from gym_pybullet_drones.envs.single_agent_rl.HoverAviary import HoverAviary
+    import matplotlib.pyplot as plt
+    import time
+    xyz = []
+    import gymnasium as gym
+    env = gym.make('hover-aviary-v0', gui=True, act=ActionType.PWM, initial_xyzs = np.array([[-0.9, 0, 1.0]]),
+                   initial_rpys = np.zeros([1, 3])
+                   )
+    obs, info = env.reset()
+    print(env.MAX_RPM)
+    done = False
+    policy = DifferentiableMellinger(max_rpm=env.MAX_RPM)
+    pid = DSLPIDControl(drone_model=DroneModel.CF2X)
+
+    while not done:
+        action = policy(torch.tensor(obs)).detach().numpy()[0]
+        # action = pid.computeControl(control_timestep= 1 / 240,
+        #                             cur_pos= obs[:3],
+        #                             cur_quat= obs[3:7],
+        #                             cur_vel= obs[10:13],
+        #                             cur_ang_vel=obs[13:16],
+        #                             target_pos=np.array([0, 0, 1]),)[0]
+        # action =  action / env.MAX_RPM
+        obs, rew, terminated, truncated, info = env.step(action)
+
+        xyz.append(np.hstack([obs[7:10]])) # , policy.integral_rpy_e.detach().numpy()
+        done = terminated or truncated
+        time.sleep(0.01)
+
+    print(info)
+    xyz = np.array(xyz)
+    plt.plot(xyz)
+    plt.legend(['r', 'p', 'y'])
+    print(xyz.shape)
+    plt.show()
+
+test_pitch_angle()
