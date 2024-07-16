@@ -3,7 +3,7 @@ import numpy as np
 import torch
 import socket
 
-import cfusdlog
+from train.utils import cfusdlog
 import matplotlib.pyplot as plt
 import re
 import argparse
@@ -86,5 +86,6 @@ class RealDataBuffer(ReplayBuffer):
 									rawData['ctrlMel.cmd_pitch'], rawData['ctrl.cmd_yaw']])
 		cmd_after_mix = rawData['ctrlMel.cmd_thrust'] + self.MIXER_MATRIX @ cmd_before_mix
 		action = cmd_after_mix.T / 65535
-		error_x = xyz -
+		error_pos = xyz - np.array([0.0, 0.0, 1.2])
+
 

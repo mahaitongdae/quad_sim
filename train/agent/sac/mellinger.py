@@ -9,6 +9,13 @@ sys.path.append('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_s
 from train.utils import util
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType
+import socket
+
+device_name = socket.gethostname()
+if device_name.startswith('naliseas'):
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+else:
+	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 class DifferentiableMellinger(nn.Module):
     cf_mass = 0.027
@@ -79,16 +86,16 @@ class DifferentiableMellinger(nn.Module):
         self.i_range_m_xy = 1.0
         self.i_range_m_z = 1500.
 
-        self.target_rpy_rates = torch.zeros([3,])
+        self.target_rpy_rates = torch.zeros([3,]).float().to(torch.device('cuda'))
         self.MIXER_MATRIX = torch.tensor([
             [-.5, -.5, -1],
             [-.5, .5, 1],
             [.5, .5, -1],
             [.5, -.5, 1]
         ]).float()
-        self.goal = torch.tensor([0., 0., 1.])
-        self.target_x_c = torch.tensor([1., 0., 0.]) # assume target rpy always 0
-        self.gravity = torch.tensor([0, 0, self.GRAVITY])
+        self.goal = torch.tensor([0., 0., 1.]).to(device)
+        self.target_x_c = torch.tensor([1., 0., 0.]).to(device) # assume target rpy always 0
+        self.gravity = torch.tensor([0, 0, self.GRAVITY]).to(device)
         self.output_type = output
         self.reset()
 
@@ -234,12 +241,12 @@ class DifferentiableMellinger(nn.Module):
 
         """
         #### Store the last roll, pitch, and yaw ###################
-        self.last_rpy = torch.zeros(3)
+        self.last_rpy = torch.zeros(3).to(device)
         #### Initialized PID control variables #####################
-        self.last_pos_e = torch.zeros(1, 3)
-        self.integral_pos_e = torch.zeros(1, 3)
-        self.last_rpy_e = torch.zeros(3)
-        self.integral_rpy_e = torch.zeros(3)
+        self.last_pos_e = torch.zeros(1, 3).to(device)
+        self.integral_pos_e = torch.zeros(1, 3).to(device)
+        self.last_rpy_e = torch.zeros(3).to(device)
+        self.integral_rpy_e = torch.zeros(3).to(device)
 
 
     def forward(self, obs):
@@ -299,11 +306,11 @@ class DifferentiableMellinger(nn.Module):
                         - torch.matmul(self.vec_transpose(cur_rotation), target_rotation))
         rot_e = torch.stack([rot_matrix_e[:, 2, 1], rot_matrix_e[:, 0, 2], rot_matrix_e[:, 1, 0]], dim=1)
         self.rot_e = rot_e
-        # rpy_rates_e = self.target_rpy_rates - (cur_rpy - self.last_rpy) * 240
-        # self.last_rpy = cur_rpy
-        # self.integral_rpy_e = self.integral_rpy_e - rot_e / 240
-        # self.integral_rpy_e = torch.clip(self.integral_rpy_e, -1500., 1500.)
-        # self.integral_rpy_e[0:2] = torch.clip(self.integral_rpy_e[0:2], -1., 1.)
+        rpy_rates_e = self.target_rpy_rates - (cur_rpy - self.last_rpy) * 240
+        self.last_rpy = cur_rpy
+        self.integral_rpy_e = self.integral_rpy_e - rot_e / 240
+        self.integral_rpy_e = torch.clip(self.integral_rpy_e, -1500., 1500.)
+        self.integral_rpy_e[0:2] = torch.clip(self.integral_rpy_e[0:2], -1., 1.)
         #### PID target torques ####################################
         target_torques = - torch.multiply(P_COEFF_TOR, rot_e) \
                          + torch.multiply(D_COEFF_TOR, diff_rpy_error) \
@@ -343,37 +350,44 @@ def test_mellinger_controller():
         return np.hstack([state[:3] + np.array([0, 0, 1]), state[3:7], state[10:16]])
 
     from gym_pybullet_drones.envs.single_agent_rl.HoverAviary import HoverAviary
+    from scipy.spatial.transform import Rotation
     import matplotlib.pyplot as plt
     import time
     xyz = []
     import gymnasium as gym
-    env = gym.make('hover-aviary-v0', gui=True, act=ActionType.PWM,
+    env = gym.make('hover-aviary-v0', gui=True, act=ActionType.RPM,
                    )
     obs, info = env.reset()
     print(env.MAX_RPM)
     done = False
-    policy = DifferentiableMellinger(max_rpm=env.MAX_RPM)
+    # policy = DifferentiableMellinger(max_rpm=env.MAX_RPM)
     pid = DSLPIDControl(drone_model=DroneModel.CF2X)
+    pid.MIXER_MATRIX = np.array([
+        [-.5, .5, -1],
+        [-.5, -.5, 1],
+        [.5, -.5, -1],
+        [.5, .5, 1]
+    ])
 
     while not done:
-        action = policy(torch.tensor(obs)).detach().numpy()[0]
-        # action = pid.computeControl(control_timestep= 1 / 240,
-        #                             cur_pos= obs[:3],
-        #                             cur_quat= obs[3:7],
-        #                             cur_vel= obs[10:13],
-        #                             cur_ang_vel=obs[13:16],
-        #                             target_pos=np.array([0, 0, 1]),)[0]
-        # action =  action / env.MAX_RPM
+        # action = policy(torch.tensor(obs)).detach().numpy()[0]
+        action = pid.computeControl(control_timestep= 1 / 240,
+                                    cur_pos= obs[:3],
+                                    cur_quat= obs[3:7],
+                                    cur_vel= obs[10:13],
+                                    cur_ang_vel=obs[13:16],
+                                    target_pos=np.array([0, 0, 1]),)[0]
+        action =  action / env.MAX_RPM
         obs, rew, terminated, truncated, info = env.step(action)
 
-        xyz.append(np.hstack([obs[22:25], policy.integral_rpy_e.detach().numpy()]))
+        xyz.append(np.hstack([obs[7:10]]))  # , policy.integral_rpy_e.detach().numpy()
         done = terminated or truncated
         time.sleep(0.01)
 
     print(info)
     xyz = np.array(xyz)
     plt.plot(xyz)
-    plt.legend(['r', 'p', 'y', 'r2', 'p2', 'y2'])
+    plt.legend(['r', 'p', 'y']) # , 'r2', 'p2', 'y2'
     print(xyz.shape)
     plt.show()
 
@@ -403,8 +417,8 @@ def test_pitch_angle():
     import time
     xyz = []
     import gymnasium as gym
-    env = gym.make('hover-aviary-v0', gui=True, act=ActionType.PWM, initial_xyzs = np.array([[-0.9, 0, 1.0]]),
-                   initial_rpys = np.zeros([1, 3])
+    env = gym.make('hover-aviary-v0', gui=False, act=ActionType.PWM, initial_xyzs = np.array([[0.0, 0, 1.0]]),
+                   initial_rpys = np.array([[0.0, 0.0, 0.9]])
                    )
     obs, info = env.reset()
     print(env.MAX_RPM)
@@ -423,15 +437,65 @@ def test_pitch_angle():
         # action =  action / env.MAX_RPM
         obs, rew, terminated, truncated, info = env.step(action)
 
-        xyz.append(np.hstack([obs[7:10]])) # , policy.integral_rpy_e.detach().numpy()
+        xyz.append(action) # , policy.integral_rpy_e.detach().numpy()
+        done = terminated or truncated
+        time.sleep(0.01)
+
+    print(info)
+    xyz = np.array(xyz)
+    plt.plot(xyz[:100])
+    plt.legend(['1', '2', '3', '4'])
+    print(xyz.shape)
+    plt.show()
+
+
+def test_yaw_mix():
+    def reformat_to_pid_state(state):
+        return np.hstack([state[:3] + np.array([0, 0, 1]), state[3:7], state[10:16]])
+
+    from gym_pybullet_drones.envs.single_agent_rl.HoverAviary import HoverAviary
+    from scipy.spatial.transform import Rotation
+    import matplotlib.pyplot as plt
+    import time
+    xyz = []
+    import gymnasium as gym
+    env = gym.make('hover-aviary-v0', gui=True, act=ActionType.RPM,  initial_xyzs = np.array([[0.0, 0, 1.0]]),
+                   initial_rpys = np.array([[0.0, 0.0, 0.9]])
+                   )
+    obs, info = env.reset()
+    print(env.MAX_RPM)
+    done = False
+    # policy = DifferentiableMellinger(max_rpm=env.MAX_RPM)
+    pid = DSLPIDControl(drone_model=DroneModel.CF2X)
+    pid.MIXER_MATRIX = np.array([
+        [-.5, .5, -1],
+        [-.5, -.5, 1],
+        [.5, -.5, -1],
+        [.5, .5, 1]
+    ])
+
+    while not done:
+        # action = policy(torch.tensor(obs)).detach().numpy()[0]
+        action = pid.computeControl(control_timestep=1 / 240,
+                                    cur_pos=obs[:3],
+                                    cur_quat=obs[3:7],
+                                    cur_vel=obs[10:13],
+                                    cur_ang_vel=obs[13:16],
+                                    target_pos=np.array([0, 0, 1]), )[0]
+        action = action / env.MAX_RPM
+        obs, rew, terminated, truncated, info = env.step(action)
+
+        xyz.append(np.hstack([obs[7:10]]))  # , policy.integral_rpy_e.detach().numpy()
         done = terminated or truncated
         time.sleep(0.01)
 
     print(info)
     xyz = np.array(xyz)
     plt.plot(xyz)
-    plt.legend(['r', 'p', 'y'])
+    plt.legend(['r', 'p', 'y'])  # , 'r2', 'p2', 'y2'
     print(xyz.shape)
     plt.show()
 
-test_pitch_angle()
+if __name__ == '__main__':
+    test_yaw_mix()
+# test_yaw_mix()
