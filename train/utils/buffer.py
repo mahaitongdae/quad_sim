@@ -9,6 +9,7 @@ import re
 import argparse
 import seaborn as sns
 import pandas as pd
+import os
 
 
 Batch = collections.namedtuple(
@@ -64,22 +65,85 @@ class RealDataBuffer(ReplayBuffer):
 	def __init__(self, state_dim, action_dim, max_size=int(1e6)):
 		super(RealDataBuffer, self).__init__(state_dim, action_dim, max_size)
 
-	def load_usd_data(self, filename):
+	def compute_reward(self, pos_error, rpy, vxyz, rpy_rate, control):
+		rew_pos = - 2.5 * np.linalg.norm(pos_error, axis=1)
+		rew_rpy = - 0.1 * np.linalg.norm(rpy, axis=1)
+		rew_lin_vel = - 0.05 * np.linalg.norm(vxyz, axis=1)
+		rew_ang_vel = - 0.05 * np.linalg.norm(rpy_rate, axis=1)
+		rew_action = - 0.1 * np.linalg.norm(control, axis=1)
+		# rew_action_diff = -0.
+		# self.rew_info = {'rew_pos': rew_pos,
+		# 				 'rew_rpy': rew_rpy,
+		# 				 'rew_lin_vel': rew_lin_vel,
+		# 				 'rew_ang_vel': rew_ang_vel,
+		# 				 'rew_action': rew_action,
+		# 				 'rew_action_diff': rew_action_diff
+		# 				 }
+		return 2 + (rew_pos +
+					rew_rpy +
+					rew_lin_vel +
+					rew_ang_vel +
+					rew_action # +
+					# rew_action_diff
+					)
+
+	def load_usd_data(self, filename, goal=np.array([0.0, 0.0, 1.2])):
 		# decode binary log data
 		rawData = cfusdlog.decode(filename)
 		rawData = rawData['fixedFrequency']
-		cmd = rawData['ctrlMel.cmd_thrust']
-		start_idx = np.nonzero(cmd)[0][0]
-		rawData = rawData[start_idx:]
-		xyz = np.hstack([rawData['stateEstimate.x'], rawData['stateEstimate.y'], rawData['stateEstimate.z']]).T
-		rpy = np.hstack([rawData['stabilizer.roll'], rawData['stabilizer.pitch'], rawData['stabilizer.yaw']]).T
-		vxyz = np.hstack([rawData['stateEstimate.vx'], rawData['stateEstimate.vy'], rawData['stateEstimate.vz']]).T
-		rpy_rate = np.hstack([rawData['stateEstimateZ.rateRoll'], rawData['stateEstimateZ.ratePitch'],
-							  rawData['stateEstimateZ.rateYaw']]).T / 1000. # rate in milliradians
-		cmd_before_mix = np.hstack([rawData['ctrlMel.cmd_roll'],
-									rawData['ctrlMel.cmd_pitch'], rawData['ctrl.cmd_yaw']])
-		cmd_after_mix = rawData['ctrlMel.cmd_thrust'] + self.MIXER_MATRIX @ cmd_before_mix
-		action = cmd_after_mix.T / 65535
-		error_pos = xyz - np.array([0.0, 0.0, 1.2])
+		index = rawData['motor.m1req'] > 0
+		first_index = np.nonzero(index)[0][0]
+		# state
+		initial_x, initial_y = rawData['stateEstimateZ.x'][first_index] / 1000, rawData['stateEstimateZ.y'][first_index] / 1000
+		goal[0] = initial_x
+		goal[1] = initial_y
+		pos_error = -1 * np.vstack([
+						 rawData['stateEstimateZ.x'][index] / 1000,
+						 rawData['stateEstimateZ.y'][index] / 1000,
+						 rawData['stateEstimateZ.z'][index] / 1000,
+						 ]).T + goal
+		integral_pos_error = np.zeros_like(pos_error)
+		diff_pos_error = np.zeros_like(pos_error)
+		for i in range(pos_error.shape[0]):
+			integral_pos_error[i] = np.sum(pos_error[:i+1], axis=0)
+		for i in range(1, pos_error.shape[0]):
+			diff_pos_error[i] = (pos_error[i] - pos_error[i - 1]) * 240
+		rpy = np.vstack([rawData['stabilizer.roll'][index],
+						 -1 * rawData['stabilizer.pitch'][index],		# all the logging is crazyflie yaw coordination
+						 rawData['stabilizer.yaw'][index]]).T / 180. * np.pi
+		vxyz = np.vstack([rawData['stateEstimate.vx'][index],
+						  rawData['stateEstimate.vy'][index],
+						  rawData['stateEstimate.vz'][index]]).T
+		rpy_rate = np.vstack([rawData['stateEstimateZ.rateRoll'][index],
+							  -1 * rawData['stateEstimateZ.ratePitch'][index],
+							  rawData['stateEstimateZ.rateYaw'][index]]).T / 1000.  # rate in milliradians
+		integral_rpy_error = np.vstack([rawData['ctrlMel.i_err_mx'][index],
+										-1 * rawData['ctrlMel.i_err_my'][index],
+							  			rawData['ctrlMel.i_err_mz'][index]]).T  # rate in milliradians
+		ctrl = np.vstack([rawData['motor.m1req'][index] / 65535.,
+						  rawData['motor.m2req'][index] / 65535.,
+						  rawData['motor.m3req'][index] / 65535.,
+						  rawData['motor.m4req'][index] / 65535.]).T
+		state = np.hstack([pos_error, rpy, vxyz, rpy_rate,
+						   integral_pos_error,			# integral
+						   -1 * vxyz,					# diff
+						   integral_rpy_error,			# integral
+						   -1 * rpy_rate,
+						   ])
+		st = state[:-1]
+		at = ctrl[:-1]
+		stp1 = state[1:]
+		reward = self.compute_reward(pos_error, rpy, vxyz, rpy_rate, ctrl)[:-1]
+		return st, at, reward, stp1
+
+	def load_all_data(self, log_path):
+		for log_file in os.listdir(log_path):
+			st, at, reward, stp1 = self.load_usd_data(os.path.join(log_path, log_file))
+
+
+def test_load_single_data():
+	buf = RealDataBuffer(state_dim=28, action_dim=4)
+	st, at, reward, stp1 = buf.load_usd_data('/media/naliseas-workstation/crazyflie/log26')
+	print(f"{st.shape} {at.shape} {reward.shape} {stp1.shape}")
 
 
