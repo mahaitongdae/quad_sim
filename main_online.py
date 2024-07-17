@@ -15,57 +15,16 @@ from train.utils import util, buffer
 from train.agent.sac import sac_agent
 from train.agent.feature_sac import feature_sac_agent
 # from environments.quadrotor import QuadrotorEnv
-import socket
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
-
-device_name = socket.gethostname()
-if device_name.startswith('naliseas'):
-	device = torch.device('cuda:1' if torch.cuda.is_available() else "cpu")
-else:
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
-class Gymnasium2GymWrapper(gymnasium.core.Wrapper):
-    """Wrapper to translate the Gymnasium interface into Gym interface."""
-
-    def __init__(self, env):
-        super().__init__(env)
-
-        # Translate action space
-        if isinstance(self.env.action_space, gymnasium.spaces.Discrete):
-            self.env.action_space = gym.spaces.Discrete(self.env.action_space.n)
-        elif isinstance(self.env.action_space, gymnasium.spaces.Box):
-            self.env.action_space = gym.spaces.Box(
-                high=self.env.action_space.high,
-                low=self.env.action_space.low,
-                shape=self.env.action_space.shape,
-                dtype=self.env.action_space.dtype)
-
-        # Translate observation space
-        if isinstance(self.env.observation_space, gymnasium.spaces.Discrete):
-            self.env.observation_space = gym.spaces.Discrete(self.env.observation_space.n)
-        elif isinstance(self.env.observation_space, gymnasium.spaces.Box):
-            self.env.observation_space = gym.spaces.Box(
-                high=self.env.observation_space.high,
-                low=self.env.observation_space.low,
-                shape=self.env.observation_space.shape,
-                dtype=self.env.observation_space.dtype)
-
-    def step(self, action):
-        obs, reward, terminated, truncated, info = self.env.step(action)
-        return obs, reward, max(terminated, truncated), info
-
-    def reset(self, **kwargs):
-        obs, _ = self.env.reset(**kwargs)
-        return obs
 
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
-    parser.add_argument('--device', type=str, default=device)
+    parser.add_argument('--device', type=str, default='cuda')
     parser.add_argument("--dir", default='sac_raw_force_input', type=str)
     parser.add_argument("--alg", default="spederv3")  # Alg name (sac, feature_sac)
-    parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
+    parser.add_argument("--log_path", default="hover-aviary-v0")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=0, type=float)  # Time steps initial random policy is used
     parser.add_argument("--eval_freq", default=2e4, type=int)  # How often (time steps) we evaluate
@@ -81,20 +40,7 @@ if __name__ == "__main__":
     parser.add_argument("--extra_feature_steps", default=3, type=int)
     args = parser.parse_args()
 
-    # load env params
 
-    env = gymnasium.make(args.env)
-    env = gymnasium.wrappers.transform_reward.TransformReward(env, lambda r: 0.2 * r)
-    eval_env = gymnasium.make(args.env)
-    env = Gymnasium2GymWrapper(env)
-    eval_env = Gymnasium2GymWrapper(eval_env)
-    
-   
-    # env.seed(args.seed)
-    # eval_env.seed(args.seed)
-    # max_length = env._max_episode_steps
-
-    # setup log
     # dir_name =
     log_path = f'log/{args.env}/{args.alg}/{args.dir}/{args.seed}/log'
     summary_writer = SummaryWriter(log_path)
@@ -142,7 +88,7 @@ if __name__ == "__main__":
         kwargs['feature_dim'] = args.feature_dim
         agent = feature_sac_agent.SPEDERAgentV3Mel(**kwargs)
 
-    replay_buffer = buffer.ReplayBuffer(state_dim, action_dim, device=args.device)
+    replay_buffer = buffer.ReplayBuffer(state_dim, action_dim)
 
     # Evaluate untrained policy
     evaluations = [util.eval_policy(agent, eval_env)]

@@ -5,7 +5,7 @@ import torch.nn.functional as F
 from torch.distributions import Normal
 import os
 
-from train.utils.util import unpack_batch  # , # RunningMeanStd
+from train.utils.util import unpack_batch, to_np  # , # RunningMeanStd
 from train.networks.policy import GaussianPolicy
 from train.networks.vae import Encoder, Decoder, GaussianFeature
 from train.agent.sac.sac_agent import SACAgent
@@ -13,6 +13,7 @@ from train.agent.sac.critic import CriticwithPhi
 from train.networks.features import MLPFeatureMu, MLPFeaturePhi
 from train import CUDA_DEVICE_WORKSTATION
 import socket
+from train.agent.sac.mellinger import DifferentiableMellinger
 
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
@@ -387,7 +388,8 @@ class SPEDERAgentV3(SACAgent):
             feature_dim=256,  # latent feature dim
             use_feature_target=True,
             extra_feature_steps=1,
-            linear_critic=False
+            linear_critic=False,
+            **kwargs
     ):
 
         super().__init__(
@@ -401,6 +403,8 @@ class SPEDERAgentV3(SACAgent):
             target_update_period=target_update_period,
             auto_entropy_tuning=auto_entropy_tuning,
             hidden_dim=hidden_dim,
+            **kwargs
+
         )
 
         self.feature_dim = feature_dim
@@ -424,6 +428,9 @@ class SPEDERAgentV3(SACAgent):
         self.critic_target = copy.deepcopy(self.critic)
         self.critic_optimizer = torch.optim.Adam(
             self.critic.parameters(), lr=lr, betas=[0.9, 0.999])
+
+        self.actor = DifferentiableMellinger().to(self.device)
+        self.actor.set_device(self.device)
 
     def feature_step(self, batch):
         # loss
@@ -480,7 +487,130 @@ class SPEDERAgentV3(SACAgent):
             **actor_info,
         }
 
-class TransferAgent(SPEDERAgent):
+class SPEDERAgentV3Mel(SACAgent):
+    """
+	SAC with VAE learned latent features
+	"""
+
+    def __init__(
+            self,
+            state_dim,
+            action_dim,
+            action_space,
+            lr=1e-4,
+            discount=0.99,
+            target_update_period=2,
+            tau=0.005,
+            alpha=0.1,
+            auto_entropy_tuning=True,
+            hidden_dim=256,
+            feature_tau=0.001,
+            feature_dim=256,  # latent feature dim
+            use_feature_target=True,
+            extra_feature_steps=1,
+            linear_critic=False,
+
+    ):
+
+        super().__init__(
+            state_dim=state_dim,
+            action_dim=action_dim,
+            action_space=action_space,
+            lr=lr,
+            tau=tau,
+            alpha=alpha,
+            discount=discount,
+            target_update_period=target_update_period,
+            auto_entropy_tuning=auto_entropy_tuning,
+            hidden_dim=hidden_dim,
+        )
+
+        self.feature_dim = feature_dim
+        self.feature_tau = feature_tau
+        self.use_feature_target = use_feature_target
+        self.extra_feature_steps = extra_feature_steps
+
+        # self.feature_phi = MLPFeaturePhi(state_dim=state_dim, action_dim=action_dim, hidden_dim=hidden_dim, feature_dim=feature_dim).to(device)
+        self.feature_mu = MLPFeatureMu(state_dim=state_dim, hidden_dim=hidden_dim, feature_dim=feature_dim).to(device)
+
+        if use_feature_target:
+            # self.feature_phi_target = copy.deepcopy(self.feature_phi)
+            self.feature_mu_target = self.feature_mu
+        self.feature_optimizer = torch.optim.Adam(
+            list(self.feature_mu.parameters()),
+            lr=lr,
+            weight_decay=1e-2
+        )
+
+        self.critic = CriticwithPhi(input_dim=state_dim + action_dim, feature_dim=feature_dim,hidden_dim=hidden_dim,).to(device)
+        self.critic_target = copy.deepcopy(self.critic)
+        self.critic_optimizer = torch.optim.Adam(
+            self.critic.parameters(), lr=lr, betas=[0.9, 0.999])
+
+        self.actor = DifferentiableMellinger().to(self.device)
+        self.actor.set_device(self.device)
+
+        self.actor_optimizer = torch.optim.Adam([{'params': self.actor.kp_xy, 'lr': 3e-5},
+                                                 {'params': self.actor.kR_xy, 'lr': 3e-1}],
+                                                lr=3e-5,
+                                                betas=[0.9, 0.999])
+
+    def feature_step(self, batch):
+        # loss
+        phi = self.critic.get_feature(batch.state, batch.action)
+        mu = self.feature_mu(batch.next_state)
+        model_learning_loss1 = - 2. * torch.sum(phi * mu, dim=-1)
+        model_learning_loss2 = torch.mean(torch.matmul(phi, mu.T) ** 2, dim=1)
+        model_learning_loss = model_learning_loss1 + model_learning_loss2
+        model_learning_loss = model_learning_loss.mean()
+
+        # loss = model_learning_loss
+
+        self.feature_optimizer.zero_grad()
+        model_learning_loss.backward()
+        self.feature_optimizer.step()
+
+        return {
+            'feature_loss': model_learning_loss.item(),
+            'model_learning_loss1': model_learning_loss1.mean().item(),
+            'model_learning_loss2': model_learning_loss2.mean().item(),
+        }
+
+    def update_feature_target(self):
+        for param, target_param in zip(self.feature_mu.parameters(), self.feature_mu_target.parameters()):
+            target_param.data.copy_(self.feature_tau * param.data + (1 - self.feature_tau) * target_param.data)
+
+    def train(self, buffer, batch_size):
+        """
+		One train step
+		"""
+        self.steps += 1
+        batch = buffer.sample(batch_size)
+
+        # Acritic step
+        critic_info = self.critic_step(batch)
+
+        # Actor and alpha step
+        actor_info = self.update_actor_and_alpha(batch)
+
+        # Feature step
+        for _ in range(self.extra_feature_steps + 1):
+            feature_info = self.feature_step(batch)
+
+            # Update the feature network if needed
+            if self.use_feature_target:
+                self.update_feature_target()
+
+        # Update the frozen target models
+        self.update_target()
+
+        return {
+            **feature_info,
+            **critic_info,
+            **actor_info,
+        }
+
+class TransferAgent(SPEDERAgentV3Mel):
 
     def __init__(self,
                  log_path,
@@ -505,10 +635,8 @@ class TransferAgent(SPEDERAgent):
             feature_dim=256,  # latent feature dim
             use_feature_target=True,
             extra_feature_steps=1,
-            linear_critic=linear_critic)
+            linear_critic=True)
         # load nets trained in simulators
-        self.feature_phi.load_state_dict(
-            torch.load(os.path.join(log_path, 'best_feature_phi.pth'), map_location={'cuda:1': 'cuda:0'}))
         # map location is for trained on workstations and load on locals.
         self.feature_mu.load_state_dict(
             torch.load(os.path.join(log_path, 'best_feature_mu.pth'), map_location={'cuda:1': 'cuda:0'}))
@@ -530,7 +658,7 @@ class TransferAgent(SPEDERAgent):
             weight_decay=1e-2)
 
         if linear_critic:
-            self.augemented_critic = LineaCritic(feature_dim=aug_feature_dim)
+            self.augemented_critic = LineaCritic(feature_dim=aug_feature_dim + self.feature_dim)
         else:
             self.augemented_critic = Critic(feature_dim=aug_feature_dim)
         self.augemented_critic_target = copy.deepcopy(self.augemented_critic)
@@ -540,7 +668,7 @@ class TransferAgent(SPEDERAgent):
 
 
     def feature_step(self, batch):
-        phi = self.feature_phi(batch.state, batch.action)
+        phi = self.critic.get_feature(batch.state, batch.action)
         mu = self.feature_mu(batch.next_state)
         model_learning_loss1 = - torch.sum(phi * mu, dim=-1)
         model_learning_loss2 = 1 / (2 * self.feature_dim) * torch.sum(phi * phi, dim=-1)
@@ -571,4 +699,6 @@ class TransferAgent(SPEDERAgent):
             # 's_loss': s_loss.mean().item(),
             # 'r_loss': r_loss.mean().item()
         }
+
+    def train(self, buffer, batch_size):
 

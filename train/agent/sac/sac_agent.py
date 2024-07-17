@@ -13,12 +13,6 @@ import socket
 
 S2R_HIDDEN_DIM = 64
 
-device_name = socket.gethostname()
-if device_name.startswith('naliseas'):
-	device = torch.device(CUDA_DEVICE_WORKSTATION if torch.cuda.is_available() else "cpu")
-else:
-	device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-
 
 class SACAgent(object):
 	"""
@@ -36,6 +30,8 @@ class SACAgent(object):
 			alpha=0.1,
 			auto_entropy_tuning=True,
 			hidden_dim=1024,
+			device='cpu',
+			**kwargs
 			):
 
 		self.steps = 0

@@ -18,7 +18,7 @@ Batch = collections.namedtuple(
 
 
 class ReplayBuffer(object):
-	def __init__(self, state_dim, action_dim, max_size=int(1e6)):
+	def __init__(self, state_dim, action_dim, max_size=int(1e6), device='cpu'):
 		self.max_size = max_size
 		self.ptr = 0
 		self.size = 0
@@ -34,7 +34,7 @@ class ReplayBuffer(object):
 			from train import CUDA_DEVICE_WORKSTATION
 			self.device = torch.device(CUDA_DEVICE_WORKSTATION if torch.cuda.is_available() else "cpu")
 		else:
-			self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+			self.device = torch.device(device)
 		
 
 	def add(self, state, action, next_state, reward, done):
@@ -63,12 +63,6 @@ class RealDataBuffer(ReplayBuffer):
 
 	def __init__(self, state_dim, action_dim, max_size=int(1e6)):
 		super(RealDataBuffer, self).__init__(state_dim, action_dim, max_size)
-		self.MIXER_MATRIX = np.array([
-			[-.5, .5, 1],
-			[-.5, -.5, -1],
-			[.5, -.5, 1],
-			[.5, .5, -1]
-		])
 
 	def load_usd_data(self, filename):
 		# decode binary log data

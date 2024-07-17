@@ -10,6 +10,8 @@ from train.utils import util
 from gym_pybullet_drones.control.DSLPIDControl import DSLPIDControl
 from gym_pybullet_drones.utils.enums import DroneModel, Physics, ActionType
 import socket
+from train.agent.sac.actor import SquashedNormal
+
 
 device_name = socket.gethostname()
 if device_name.startswith('naliseas'):
@@ -98,6 +100,11 @@ class DifferentiableMellinger(nn.Module):
         self.gravity = torch.tensor([0, 0, self.GRAVITY]).to(device)
         self.output_type = output
         self.reset()
+
+        self.trunk = util.mlp(28, 256, 4,
+                              2, hidden_activation=nn.ELU(inplace=True))
+
+        self.log_std_bounds=[-20., 1.]
 
         def transpose(x):
             return x.T
@@ -248,8 +255,7 @@ class DifferentiableMellinger(nn.Module):
         self.last_rpy_e = torch.zeros(3).to(device)
         self.integral_rpy_e = torch.zeros(3).to(device)
 
-
-    def forward(self, obs):
+    def mellinger_control(self, obs):
         #### OBS SPACE OF SIZE 28
         # first 16: xyz_error 3, quat 4, rpy 3, vel_xyz 3, angle_vel_xyz 3 each
         #### then 12: integral error of pos 3, diff error of pos 3, integral error of angle 3, diff error of angle 3
@@ -281,15 +287,16 @@ class DifferentiableMellinger(nn.Module):
         #### PID target thrust #####################################
         target_thrust = torch.multiply(P_COEFF_FOR, pos_e) \
                         + torch.multiply(I_COEFF_FOR, integral_pos_error) \
-                        + torch.multiply(D_COEFF_FOR, vel_e) + self.gravity # , device=self.de
+                        + torch.multiply(D_COEFF_FOR, vel_e) + self.gravity  # , device=self.de
         scalar_thrust = torch.clamp(torch.vmap(torch.inner)(target_thrust, cur_rotation[:, :, 2]), 0, torch.inf)
         # thrust_pwm = (torch.sqrt(scalar_thrust / (4 * self.KF)) - self.PWM2RPM_CONST) / self.PWM2RPM_SCALE
         thrust_pwm = self.massThrust * scalar_thrust
         target_z_ax = F.normalize(target_thrust, dim=1)
         # target_x_c = torch.tensor([1., 0., 0.]) # assume target rpy always 0
-        target_y_ax = F.normalize(torch.vmap(torch.cross, in_dims=(0, None))(target_z_ax, self.target_x_c), dim=1) # / torch.norm(torch.cross(target_z_ax, target_x_c))
+        target_y_ax = F.normalize(torch.vmap(torch.cross, in_dims=(0, None))(target_z_ax, self.target_x_c),
+                                  dim=1)  # / torch.norm(torch.cross(target_z_ax, target_x_c))
         target_x_ax = torch.vmap(torch.cross)(target_y_ax, target_z_ax)
-        target_rotation_transposed = torch.stack([target_x_ax, target_y_ax, target_z_ax],dim=1)
+        target_rotation_transposed = torch.stack([target_x_ax, target_y_ax, target_z_ax], dim=1)
         target_rotation = torch.permute(target_rotation_transposed, [0, 2, 1])
         #### Target rotation #######################################
         target_euler = self.matrix_to_euler_angles(target_rotation)
@@ -300,7 +307,6 @@ class DifferentiableMellinger(nn.Module):
         # target_quat = (Rotation.from_euler('XYZ', target_euler, degrees=False)).as_quat()
         # w, x, y, z = target_quat
         # target_rotation = (Rotation.from_quat([w, x, y, z])).as_matrix()
-
 
         rot_matrix_e = (torch.matmul(self.vec_transpose(target_rotation), cur_rotation)
                         - torch.matmul(self.vec_transpose(cur_rotation), target_rotation))
@@ -317,13 +323,27 @@ class DifferentiableMellinger(nn.Module):
                          + torch.multiply(I_COEFF_TOR, integral_rpy_error)
         target_torques = torch.clip(target_torques, -32000, 32000)
         pwm = thrust_pwm.unsqueeze(1) + torch.matmul(self.MIXER_MATRIX, target_torques.unsqueeze(2)).squeeze()
-        pwm = torch.clip(pwm, self.MIN_PWM, self.MAX_PWM) # .squeeze(dim=-1)
+        pwm = torch.clip(pwm, self.MIN_PWM, self.MAX_PWM)  # .squeeze(dim=-1)
         if self.output_type == "pwm":
             return pwm / self.MAX_PWM
         elif self.output_type == "rpm":
             return (self.PWM2RPM_SCALE * pwm + self.PWM2RPM_CONST) / self.MAX_RPM
         else:
             raise ValueError(f"Invalid output type {self.output_type}.")
+
+
+    def forward(self, obs):
+        control = self.mellinger_control(obs)
+        log_std = self.trunk(obs)
+        log_std = torch.tanh(log_std)
+        log_std_min, log_std_max = self.log_std_bounds
+        log_std = log_std_min + 0.5 * (log_std_max - log_std_min) * (log_std +
+                                                                     1)
+
+        std = log_std.exp()
+        dist = SquashedNormal(control, std)
+        return dist
+
 
 
 
