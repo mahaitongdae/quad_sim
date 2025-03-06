@@ -29,7 +29,7 @@ from stable_baselines3.common.env_util import make_vec_env
 from stable_baselines3.common.vec_env import SubprocVecEnv
 from train.agent.sac.actor import DiagGaussianActor
 import torch
-from sbx import TQC, SAC
+# from sbx import TQC, SAC
 import seaborn
 import pandas as pd
 from matplotlib import pyplot as plt
@@ -63,7 +63,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
                               hidden_depth=2,
                               log_std_bounds=[-20., 1.])
     actor.load_state_dict(
-        torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/hover-aviary-v0/sac/debug_norm_omega/1/best_actor.pth',
+        torch.load('/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_raw_force_input/1/log/best_actor.pth',
                    map_location=torch.device('cpu')))
     logger = LoggerV1(logging_freq_hz=int(env.CTRL_FREQ),
                       env = env,
