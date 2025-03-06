@@ -30,7 +30,7 @@ class DifferentiableMellinger(nn.Module):
     GRAVITY = 9.81 * cf_mass
     KF = 3.16e-10
 
-    def __init__(self, max_rpm=21600, ctrl_freq : int = 240, output = "pwm"):
+    def __init__(self, max_rpm=21600, ctrl_freq : int = 240, output = "pwm", device='cpu'):
         """
 
         Args:
@@ -39,6 +39,7 @@ class DifferentiableMellinger(nn.Module):
             output:     "pwm" or "rpm",
         """
         super().__init__()
+        self.device = torch.device(device)
         self.CTRL_FREQ = ctrl_freq
         self.MAX_RPM = max_rpm
         self.integral_error = torch.zeros([3, ])
@@ -88,16 +89,16 @@ class DifferentiableMellinger(nn.Module):
         self.i_range_m_xy = 1.0
         self.i_range_m_z = 1500.
 
-        self.target_rpy_rates = torch.zeros([3,]).float().to(torch.device('cuda'))
+        self.target_rpy_rates = torch.zeros([3,]).float().to(self.device)
         self.MIXER_MATRIX = torch.tensor([
             [-.5, -.5, -1],
             [-.5, .5, 1],
             [.5, .5, -1],
             [.5, -.5, 1]
-        ]).float()
-        self.goal = torch.tensor([0., 0., 1.]).to(device)
-        self.target_x_c = torch.tensor([1., 0., 0.]).to(device) # assume target rpy always 0
-        self.gravity = torch.tensor([0, 0, self.GRAVITY]).to(device)
+        ]).float().to(self.device)
+        self.goal = torch.tensor([0., 0., 1.]).to(self.device)
+        self.target_x_c = torch.tensor([1., 0., 0.]).to(self.device) # assume target rpy always 0
+        self.gravity = torch.tensor([0, 0, self.GRAVITY]).to(self.device)
         self.output_type = output
         self.reset()
 
@@ -121,10 +122,10 @@ class DifferentiableMellinger(nn.Module):
 
 
     def set_device(self, device):
-        self.MIXER_MATRIX = self.MIXER_MATRIX.to(device)
-        self.goal = self.goal.to(device)
-        self.target_x_c = self.target_x_c.to(device)
-        self.gravity = self.gravity.to(device)
+        self.MIXER_MATRIX = self.MIXER_MATRIX.to(self.device)
+        self.goal = self.goal.to(self.device)
+        self.target_x_c = self.target_x_c.to(self.device)
+        self.gravity = self.gravity.to(self.device)
 
 
     def quaternion_to_matrix(self, quaternions: torch.Tensor) -> torch.Tensor:
@@ -248,12 +249,12 @@ class DifferentiableMellinger(nn.Module):
 
         """
         #### Store the last roll, pitch, and yaw ###################
-        self.last_rpy = torch.zeros(3).to(device)
+        self.last_rpy = torch.zeros(3).to(self.device)
         #### Initialized PID control variables #####################
-        self.last_pos_e = torch.zeros(1, 3).to(device)
-        self.integral_pos_e = torch.zeros(1, 3).to(device)
-        self.last_rpy_e = torch.zeros(3).to(device)
-        self.integral_rpy_e = torch.zeros(3).to(device)
+        self.last_pos_e = torch.zeros(1, 3).to(self.device)
+        self.integral_pos_e = torch.zeros(1, 3).to(self.device)
+        self.last_rpy_e = torch.zeros(3).to(self.device)
+        self.integral_rpy_e = torch.zeros(3).to(self.device)
 
     def mellinger_control(self, obs):
         #### OBS SPACE OF SIZE 28
@@ -485,23 +486,23 @@ def test_yaw_mix():
     obs, info = env.reset()
     print(env.MAX_RPM)
     done = False
-    # policy = DifferentiableMellinger(max_rpm=env.MAX_RPM)
-    pid = DSLPIDControl(drone_model=DroneModel.CF2X)
-    pid.MIXER_MATRIX = np.array([
-        [-.5, .5, -1],
-        [-.5, -.5, 1],
-        [.5, -.5, -1],
-        [.5, .5, 1]
-    ])
+    policy = DifferentiableMellinger(max_rpm=env.MAX_RPM)
+    # pid = DSLPIDControl(drone_model=DroneModel.CF2X)
+    # pid.MIXER_MATRIX = np.array([
+    #     [-.5, .5, -1],
+    #     [-.5, -.5, 1],
+    #     [.5, -.5, -1],
+    #     [.5, .5, 1]
+    # ])
 
     while not done:
-        # action = policy(torch.tensor(obs)).detach().numpy()[0]
-        action = pid.computeControl(control_timestep=1 / 240,
-                                    cur_pos=obs[:3],
-                                    cur_quat=obs[3:7],
-                                    cur_vel=obs[10:13],
-                                    cur_ang_vel=obs[13:16],
-                                    target_pos=np.array([0, 0, 1]), )[0]
+        action = policy(torch.tensor(obs)).detach().numpy()[0]
+        # action = pid.computeControl(control_timestep=1 / 240,
+        #                             cur_pos=obs[:3],
+        #                             cur_quat=obs[3:7],
+        #                             cur_vel=obs[10:13],
+        #                             cur_ang_vel=obs[13:16],
+        #                             target_pos=np.array([0, 0, 1]), )[0]
         action = action / env.MAX_RPM
         obs, rew, terminated, truncated, info = env.step(action)
 

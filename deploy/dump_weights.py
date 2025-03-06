@@ -7,21 +7,22 @@ ACTION_DIM = 4 # for final layer trim
 
 from code_blocks import (
     headers_network_evaluate,
+    headers_network_evaluate_test,
     linear_activation,
     sigmoid_activation,
     relu_activation,
     elu_activation,
-    scale_clip_op
+    scale_clip_op,
+    test_func_with_ones_input
 )
 
 
-def generate(actor, output_path=None):
+def generate(actor, output_f_name=None, test_file=True):
     """
 	Generate mlp model source code given a policy object
 	Args:
 		actor: the DiagnalGaussianActor used in training.
 	"""
-    # # TODO: check if the policy is really a mlp policy
     # trainable_list = policy.get_params()
     #
     # trainable_shapes = []
@@ -102,43 +103,60 @@ def generate(actor, output_path=None):
 
     # the first hidden layer
     input_for_loop = """
-		for (int i = 0; i < structure[0][0]; i++) {
-			output_0[i] = 0;
-			for (int j = 0; j < structure[0][1]; j++) {
-				output_0[i] += state_array[j] * layer_0_weight[i][j];
-			}
-			output_0[i] += layer_0_bias[i];
-			output_0[i] = elu(output_0[i]);
-		}
+    for (int i = 0; i < structure[0][0]; i++) {
+        output_0[i] = 0;
+        for (int j = 0; j < structure[0][1]; j++) {
+            output_0[i] += state_array[j] * layer_0_weight[i][j];
+        }
+        output_0[i] += layer_0_bias[i];
+        output_0[i] = elu(output_0[i]);
+    }
 	"""
     for_loops.append(input_for_loop)
 
     # rest of the hidden layers
     for n in range(1, n_layers - 1):
         for_loop = """
-		for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
-			output_""" + str(n) + """[i] = 0;
-			for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
-				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[i][j];
-			}
-			output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
-			output_""" + str(n) + """[i] = elu(output_""" + str(n) + """[i]);
-		}
-		"""
+    for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
+        output_""" + str(n) + """[i] = 0;
+        for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
+            output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[i][j];
+        }
+        output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
+        output_""" + str(n) + """[i] = elu(output_""" + str(n) + """[i]);
+    }
+    """
         for_loops.append(for_loop)
 
     n = n_layers - 1
     # the last hidden layer which is supposed to have no non-linearity
     output_for_loop = """
-		for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
-			output_""" + str(n) + """[i] = 0;
-			for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
-				output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[i][j];
-			}
-			output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
-		}
-		"""
+    for (int i = 0; i < structure[""" + str(n) + """][0]; i++) {
+        output_""" + str(n) + """[i] = 0;
+        for (int j = 0; j < structure[""" + str(n) + """][1]; j++) {
+            output_""" + str(n) + """[i] += output_""" + str(n - 1) + """[j] * layer_""" + str(n) + """_weight[i][j];
+        }
+        output_""" + str(n) + """[i] += layer_""" + str(n) + """_bias[i];
+    }
+    """
     for_loops.append(output_for_loop)
+
+    output_activation = """
+    for (int i = 0; i < structure[2][0]; i++) {
+		output_2[i] = tanh(output_2[i]);
+	}
+	
+    """
+
+    for_loops.append(output_activation)
+
+    print_for_test = r"""
+    printf("actor output\n");
+	for (int i=0; i<4; i++) {
+		printf("%f ", output_2[i]);
+	}
+	
+    """
 
     ## assign network outputs to control
     assignment = """
@@ -149,13 +167,23 @@ def generate(actor, output_path=None):
 	"""
 
     ## construct the network evaluation function
-    controller_eval = """
-	void networkEvaluate(control_t *control, const float *state_array) {
-	"""
+    if test_file:
+        controller_eval = """
+void networkEvaluate(float *state_array) {
+"""
+    else:
+        controller_eval = """
+void networkEvaluate(control_t *control, const float *state_array) {
+"""
     for code in for_loops:
         controller_eval += code
-    ## assignment to control_n
-    controller_eval += assignment
+
+    if not test_file:
+        ## assignment to control_n
+        controller_eval += assignment
+    else:
+        ## print out the actor output
+        controller_eval += print_for_test
 
     ## closing bracket
     controller_eval += """
@@ -165,7 +193,7 @@ def generate(actor, output_path=None):
     ## combine the all the codes
     source = ""
     ## headers
-    source += headers_network_evaluate
+    source += headers_network_evaluate if not test_file else headers_network_evaluate_test
     ## helper functions
     source += linear_activation
     source += sigmoid_activation
@@ -182,12 +210,18 @@ def generate(actor, output_path=None):
         source += bias
     source += controller_eval
 
+    if test_file:
+        source += test_func_with_ones_input
+
     ## add log group for logging
     # source += log_group
 
-    if output_path:
-        with open(output_path, 'w') as f:
-            f.write(source)
+    suffix = '_test' if test_file else ''
+    output_path = os.path.join(os.getcwd(), output_f_name + suffix + '.c')
+
+    # if output_path:
+    with open(output_path, 'w') as f:
+        f.write(source)
 
     return source
 
@@ -196,8 +230,8 @@ if __name__ == '__main__':
     import torch
     from train.agent.sac.actor import DiagGaussianActor
 
-    actor = DiagGaussianActor(obs_dim=20, action_dim=4, hidden_dim=64, hidden_depth=2,
+    actor = DiagGaussianActor(obs_dim=28, action_dim=4, hidden_dim=64, hidden_depth=2,
                               log_std_bounds=[-5., 2.],lipsnet=False)  # hard coded for drone controllers.
 
-    actor.load_state_dict(torch.load('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/hover-aviary-v0/sac/debug_norm_omega/1/best_actor.pth', map_location=torch.device('cpu')))
-    generate(actor, '../deploy/network_evaluate.c')
+    actor.load_state_dict(torch.load('/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_raw_force_input/1/log/best_actor.pth', map_location=torch.device('cpu')))
+    generate(actor, '../deploy/network_evaluate_{}'.format('20250305'), test_file=True)

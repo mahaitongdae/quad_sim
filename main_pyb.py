@@ -64,7 +64,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default=device)
     parser.add_argument("--dir", default='sac_raw_force_input', type=str)
-    parser.add_argument("--alg", default="spederv3")  # Alg name (sac, feature_sac)
+    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=0, type=float)  # Time steps initial random policy is used
@@ -120,6 +120,7 @@ if __name__ == "__main__":
         "discount": args.discount,
         "tau": args.tau,
         "hidden_dim": args.hidden_dim,
+        "device":args.device,
     }
 
     # Initialize policy
@@ -166,7 +167,7 @@ if __name__ == "__main__":
             action = agent.select_action(state, explore=True)
 
         # Perform action
-        next_state, reward, done, _ = env.step(action)
+        next_state, reward, done, env_info = env.step(action)
         done_bool = float(done) # if episode_timesteps < max_length else 0
 
         # Store data in replay buffer
@@ -186,8 +187,12 @@ if __name__ == "__main__":
 
         if done:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
+            # print(env_info)
             print(
-                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
+                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}, Done: {env_info['done']}")
+            for key, value in env_info['episode_rew'].items():
+                summary_writer.add_scalar(f'info/{key}', value, t + 1)
+            summary_writer.flush()
             # Reset environment
             state, done = env.reset(), False
             episode_reward = 0

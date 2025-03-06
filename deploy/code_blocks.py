@@ -14,6 +14,12 @@ headers_network_evaluate = """
 
 """
 
+headers_network_evaluate_test = """
+#include<stdio.h>
+#include<math.h>
+
+"""
+
 constants = """
 
 #define MAX_THRUST 0.1597
@@ -81,6 +87,14 @@ float elu(float num) {
 
 """
 
+tanh_activation = """
+
+float tanh(float num) {
+	return (exp(num) - exp(-num)) / (exp(num) + exp(-num));
+}
+
+"""
+
 relu_activation = """
 
 float relu(float num) {
@@ -109,6 +123,34 @@ float clip(float v, float min, float max) {
 	return v;
 }
 
+"""
+
+test_func_with_ones_input = r"""
+
+int main() {
+    float arr[28];  // Array of pointers
+
+    // Allocate memory for each integer
+    for (int i = 0; i < 28; i++) {
+        // arr[i] = (float *)malloc(sizeof(float));
+        // if (arr[i] != NULL) {
+        //     *arr[i] = 1.0;
+        // }
+		arr[i] = 1.0;
+    }
+
+    // Print values
+    for (int i = 0; i < 28; i++) {
+        printf("%f ", arr[i]);
+    }
+
+    printf("\n");
+
+
+	networkEvaluate(arr);
+
+    return 0;
+}
 """
 
 controller_entry = """

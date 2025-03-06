@@ -36,7 +36,7 @@ class SACAgent(object):
 
 		self.steps = 0
 
-		self.device = device 
+		self.device = torch.device(device)
 		self.action_range = [
 			float(action_space.low.min()),
 			float(action_space.high.max())

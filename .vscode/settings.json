@@ -1,5 +1,6 @@
 {
     "files.associations": {
-        "network_evaluate.h": "c"
+        "network_evaluate.h": "c",
+        "math.h": "c"
     }
 }
