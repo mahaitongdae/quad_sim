@@ -10,3 +10,15 @@ python dump_weights.py
 gcc network_evaluate_20250305_test.c -o network_evaluate_20250305_test -lm
 ./network_evaluate_20250305_test
 ```
+
+# Real drone deploy
+
+```shell
+make cf2_defconfig
+```
+```shell
+make -j8
+```
+```
+make flash
+```
