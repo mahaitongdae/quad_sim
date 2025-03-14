@@ -45,7 +45,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
     env = HoverAviary(gui=gui,
                       record=record_video,
                       add_action_obs=True,
-                      act=ActionType.RPM,
+                      act=ActionType.PWM,
                       initial_rpys=np.zeros((1,3))
                      )
     env.EPISODE_LEN_SEC = 3
@@ -60,9 +60,9 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
     for i in range(env.CTRL_FREQ):
         # ref https://www.bitcraze.io/images/getting-started/cf2_props.png
         # ref https://www.bitcraze.io/documentation/system/platform/cf2-coordinate-system/
-        # action = np.zeros((4, ))
+        action = 0.2 * np.ones((4, ))
         # action = np.array([0.1, 0.1, 0.0, 0.0]) # negative roll, checked
-        action = np.array([0.1, 0.0, 0.0, 0.1]) # positive pitch, checked
+        # action = np.array([0.1, 0.0, 0.0, 0.1]) # positive pitch, checked
         # action = np.array([-0.1, 0.1, -0.1, 0.1]) # positive yaw, checked
         obs, reward, terminated, truncated, info = env.step(action)
         logger.log(drone=0,

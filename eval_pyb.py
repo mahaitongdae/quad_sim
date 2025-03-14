@@ -54,7 +54,8 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
     #### Show (and record a video of) the model's performance ##
     env = HoverAviary(gui=gui,
                       record=record_video,
-                      add_action_obs=True
+                      add_action_obs=True,
+                      act=ActionType.PWM,
                      )
     env.EPISODE_LEN_SEC = 3
     actor = DiagGaussianActor(obs_dim=env.observation_space.shape[0],
@@ -63,7 +64,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
                               hidden_depth=2,
                               log_std_bounds=[-20., 1.])
     actor.load_state_dict(
-        torch.load('/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_raw_force_input/1/log/best_actor.pth',
+        torch.load('/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_revise_no_delay/1/log/last_actor.pth',
                    map_location=torch.device('cpu')))
     logger = LoggerV1(logging_freq_hz=int(env.CTRL_FREQ),
                       env = env,
@@ -73,7 +74,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
                     )
     obs, info = env.reset(seed=42, options={})
     start = time.time()
-    for i in range(3*env.CTRL_FREQ):
+    for i in range(env.CTRL_FREQ):
         action = select_action(actor, obs)
         obs, reward, terminated, truncated, info = env.step(action)
         logger.log(drone=0,

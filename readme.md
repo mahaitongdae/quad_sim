@@ -8,6 +8,17 @@
       git checkout dev_haitong
       pip install -e .
     ```
+  
+## The other environment
+
+```shell
+pip install noise
+
+## pyglet
+git clone https://github.com/pyglet/pyglet.git
+git checkout pyglet-1.5-maintainance
+python setup.py install --user
+```
 
 ## offline training
 

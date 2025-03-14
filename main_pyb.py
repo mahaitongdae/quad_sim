@@ -16,6 +16,7 @@ from train.agent.sac import sac_agent
 from train.agent.feature_sac import feature_sac_agent
 # from environments.quadrotor import QuadrotorEnv
 import socket
+from exp_logger.log_git import log_git_details
 
 root_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -63,7 +64,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default=device)
-    parser.add_argument("--dir", default='sac_revise_no_delay', type=str)
+    parser.add_argument("--dir", default='sac_increase_4s', type=str)
     parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
@@ -83,10 +84,10 @@ if __name__ == "__main__":
 
     # load env params
 
-    env = gymnasium.make(args.env)
-    env = gymnasium.wrappers.transform_reward.TransformReward(env, lambda r: 0.2 * r)
+    env = gymnasium.make(args.env, ctrl_freq=120)
+    # env = gymnasium.wrappers.transform_reward.TransformReward(env, lambda r: 0.2 * r)
     eval_env = gymnasium.make(args.env)
-    env = Gymnasium2GymWrapper(env)
+    # env = Gymnasium2GymWrapper(env)
     eval_env = Gymnasium2GymWrapper(eval_env)
     
    
@@ -167,8 +168,8 @@ if __name__ == "__main__":
             action = agent.select_action(state, explore=True)
 
         # Perform action
-        next_state, reward, done, env_info = env.step(action)
-        done_bool = float(done) # if episode_timesteps < max_length else 0
+        next_state, reward, terminated, truncated, env_info = env.step(action)
+        done_bool = float(terminated) # if episode_timesteps < max_length else 0
 
         # Store data in replay buffer
         replay_buffer.add(state, action, next_state, reward, done_bool)
