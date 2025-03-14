@@ -509,6 +509,8 @@ class SPEDERAgentV3Mel(SACAgent):
             use_feature_target=True,
             extra_feature_steps=1,
             linear_critic=False,
+            device='cpu',
+            **kwargs
 
     ):
 
@@ -523,6 +525,8 @@ class SPEDERAgentV3Mel(SACAgent):
             target_update_period=target_update_period,
             auto_entropy_tuning=auto_entropy_tuning,
             hidden_dim=hidden_dim,
+            device=device,
+            **kwargs
         )
 
         self.feature_dim = feature_dim
@@ -613,40 +617,43 @@ class SPEDERAgentV3Mel(SACAgent):
 class TransferAgent(SPEDERAgentV3Mel):
 
     def __init__(self,
-                 log_path,
+                 agent_path,
                  state_dim,
                  action_dim,
                  action_space,
-                 lr,
-                 linear_critic = False,
-                 aug_feature_dim = 128):
+                 lr = 1e-4,
+                 linear_critic = True,
+                 aug_feature_dim = 128,
+                 **kwargs):
         super(TransferAgent, self).__init__(
             state_dim,
             action_dim,
             action_space,
             lr=lr,
-            discount=0.99,
-            target_update_period=2,
-            tau=0.005,
-            alpha=0.1,
-            auto_entropy_tuning=True,
-            hidden_dim=256,
-            feature_tau=0.001,
-            feature_dim=256,  # latent feature dim
-            use_feature_target=True,
-            extra_feature_steps=1,
-            linear_critic=True)
+            # discount=0.99,
+            # target_update_period=2,
+            # tau=0.005,
+            # alpha=0.1,
+            # auto_entropy_tuning=True,
+            # hidden_dim=256,
+            # feature_tau=0.001,
+            # feature_dim=256,  # latent feature dim
+            # use_feature_target=True,
+            # extra_feature_steps=1,
+            # linear_critic=True,
+            **kwargs
+        )
         # load nets trained in simulators
         # map location is for trained on workstations and load on locals.
         self.feature_mu.load_state_dict(
-            torch.load(os.path.join(log_path, 'best_feature_mu.pth'), map_location={'cuda:1': 'cuda:0'}))
+            torch.load(os.path.join(agent_path, 'best_feature_mu.pth'), map_location={'cuda:1': 'cuda:0'}))
         self.critic.load_state_dict(
-            torch.load(os.path.join(log_path, 'best_critic.pth'), map_location={'cuda:1': 'cuda:0'}))
+            torch.load(os.path.join(agent_path, 'best_critic.pth'), map_location={'cuda:1': 'cuda:0'}))
         self.actor.load_state_dict(
-            torch.load(os.path.join(log_path, 'best_actor.pth'), map_location={'cuda:1': 'cuda:0'}))
+            torch.load(os.path.join(agent_path, 'best_actor.pth'), map_location={'cuda:1': 'cuda:0'}))
 
-        self.augmented_feature_phi = MLPFeaturePhi(state_dim, action_dim, feature_dim=128)
-        self.augmented_feature_mu = MLPFeatureMu(state_dim, action_dim, feature_dim=128)
+        self.augmented_feature_phi = MLPFeaturePhi(state_dim, action_dim, feature_dim=128).to(self.device)
+        self.augmented_feature_mu = MLPFeatureMu(state_dim, action_dim, feature_dim=128).to(self.device)
 
         if self.use_feature_target:
             self.augmented_feature_phi_target = copy.deepcopy(self.augmented_feature_phi)
@@ -658,7 +665,7 @@ class TransferAgent(SPEDERAgentV3Mel):
             weight_decay=1e-2)
 
         if linear_critic:
-            self.augemented_critic = LineaCritic(feature_dim=aug_feature_dim + self.feature_dim)
+            self.augemented_critic = LineaCritic(feature_dim=aug_feature_dim + self.feature_dim).to(self.device)
         else:
             self.augemented_critic = Critic(feature_dim=aug_feature_dim)
         self.augemented_critic_target = copy.deepcopy(self.augemented_critic)
@@ -666,6 +673,46 @@ class TransferAgent(SPEDERAgentV3Mel):
 
         self.aug_critic_optimizer = torch.optim.Adam(self.augemented_critic.parameters(), lr=lr, betas=[0.9, 0.999])
 
+    def critic_step(self, batch):
+        """
+        Critic update step
+        """
+        state, action, next_state, reward, done = unpack_batch(batch)
+
+        def get_q(state, action):
+            with torch.no_grad():
+                q1, q2 = self.critic(state, action)
+                phi = self.critic.get_feature(state, action)
+            aug_phi = self.augmented_feature_phi(state, action)
+            combined_phi = torch.hstack([phi, aug_phi])
+            aug_q1, aug_q2 = self.augemented_critic(combined_phi)
+            return aug_q1 + q1, aug_q2 + q2
+
+        with torch.no_grad():
+            dist = self.actor(next_state)
+            next_action = dist.rsample()
+            next_action_log_pi = dist.log_prob(next_action).sum(-1, keepdim=True)
+
+            next_q1, next_q2 = get_q(next_state, next_action)
+            next_q = torch.min(next_q1, next_q2) - self.alpha * next_action_log_pi
+            target_q = reward + (1. - done) * self.discount * next_q
+
+
+        q1, q2 = get_q(state, action)
+        q1_loss = F.mse_loss(target_q, q1)
+        q2_loss = F.mse_loss(target_q, q2)
+        q_loss = q1_loss + q2_loss
+
+        self.critic_optimizer.zero_grad()
+        q_loss.backward()
+        self.critic_optimizer.step()
+
+        return {
+            'q1_loss': q1_loss.item(),
+            'q2_loss': q2_loss.item(),
+            'q1': q1.mean().item(),
+            'q2': q2.mean().item()
+        }
 
     def feature_step(self, batch):
         phi = self.critic.get_feature(batch.state, batch.action)
@@ -699,6 +746,4 @@ class TransferAgent(SPEDERAgentV3Mel):
             # 's_loss': s_loss.mean().item(),
             # 'r_loss': r_loss.mean().item()
         }
-
-    def train(self, buffer, batch_size):
 
