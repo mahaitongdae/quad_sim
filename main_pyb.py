@@ -67,7 +67,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default=device)
     parser.add_argument("--dir", default='sac_increase_4s_debug_obs', type=str)
-    parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
+    parser.add_argument("--alg", default="randomized_sac")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=0, type=float)  # Time steps initial random policy is used
@@ -144,6 +144,8 @@ if __name__ == "__main__":
         kwargs.pop('action_space')
         kwargs['action_range'] = [[-1., -1., -1., -1., ],
                                     [1., 1., 1., 1.,]]
+        kwargs['rsvd_num'] = 4096
+        kwargs['rf_num'] = 8192
         agent = random_sac_agent.randSACAgent(**kwargs)
         
 
@@ -186,7 +188,11 @@ if __name__ == "__main__":
 
             if (t+1) % 1000 == 0: # add more frequent logging for train stats.
                 for key, value in info.items():
-                    summary_writer.add_scalar(f'info/{key}', value, t + 1)
+                    if 'dist' in key:
+                        for dist_key, dist_val in value.items():
+                            summary_writer.add_histogram(f'dist/{dist_key}', dist_val, t + 1)
+                    else:
+                        summary_writer.add_scalar(f'info/{key}', value, t + 1)
                 summary_writer.flush()
 
         if terminated or truncated:
