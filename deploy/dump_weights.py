@@ -228,12 +228,15 @@ void networkEvaluate(control_t *control, const float *state_array) {
 
 if __name__ == '__main__':
     import torch
+    import sys
+    print(os.path.dirname(__file__))
+    sys.path.append(os.path.dirname(os.path.dirname(__file__)))
     from train.agent.sac.actor import DiagGaussianActor
     import subprocess
     import argparse
     import datetime
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', default='/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_increase_4s/2/log/best_actor.pth', type=str)
+    parser.add_argument('--path', default='/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/hover-aviary-v0/sac/sac_increase_4s/1/log/best_actor.pth', type=str)
     parser.add_argument('--test', default=False, type=bool)
     args = parser.parse_args()
 

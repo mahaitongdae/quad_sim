@@ -9,11 +9,13 @@ import yaml
 import pickle as pkl
 
 from tensorboardX import SummaryWriter
-from gym_pybullet_drones.envs.single_agent_rl.HoverAviary import HoverAviary
+# from gym_pybullet_drones.envs.single_agent_rl.HoverAviary import HoverAviary
+import gym_pybullet_drones
 
 from train.utils import util, buffer
 from train.agent.sac import sac_agent
 from train.agent.feature_sac import feature_sac_agent
+from train.agent.random_sac import random_sac_agent
 # from environments.quadrotor import QuadrotorEnv
 import socket
 from exp_logger.log_git import log_git_details
@@ -64,7 +66,7 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default=device)
-    parser.add_argument("--dir", default='sac_increase_4s', type=str)
+    parser.add_argument("--dir", default='sac_increase_4s_debug_obs', type=str)
     parser.add_argument("--alg", default="sac")  # Alg name (sac, feature_sac)
     parser.add_argument("--env", default="hover-aviary-v0")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
@@ -83,17 +85,11 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     # load env params
-
     env = gymnasium.make(args.env, ctrl_freq=120)
     # env = gymnasium.wrappers.transform_reward.TransformReward(env, lambda r: 0.2 * r)
     eval_env = gymnasium.make(args.env)
     # env = Gymnasium2GymWrapper(env)
     eval_env = Gymnasium2GymWrapper(eval_env)
-    
-   
-    # env.seed(args.seed)
-    # eval_env.seed(args.seed)
-    # max_length = env._max_episode_steps
 
     # setup log
     # dir_name =
@@ -105,6 +101,8 @@ if __name__ == "__main__":
     with open(os.path.join(log_path, 'train_params.pkl'), 'wb') as fp:
         pkl.dump(kwargs, fp)
 
+    log_git_details(os.path.join(log_path, 'git.diff'))
+
     # set seeds
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -112,7 +110,6 @@ if __name__ == "__main__":
     #
     state_dim = env.observation_space.shape[0]
     action_dim = env.action_space.shape[0]
-    max_action = float(env.action_space.high[0])
 
     kwargs = {
         "state_dim": state_dim,
@@ -143,13 +140,19 @@ if __name__ == "__main__":
         kwargs['extra_feature_steps'] = args.extra_feature_steps
         kwargs['feature_dim'] = args.feature_dim
         agent = feature_sac_agent.SPEDERAgentV3Mel(**kwargs)
+    elif args.alg == 'randomized_sac':
+        kwargs.pop('action_space')
+        kwargs['action_range'] = [[-1., -1., -1., -1., ],
+                                    [1., 1., 1., 1.,]]
+        agent = random_sac_agent.randSACAgent(**kwargs)
+        
 
     replay_buffer = buffer.ReplayBuffer(state_dim, action_dim, device=args.device)
 
     # Evaluate untrained policy
     evaluations = [util.eval_policy(agent, eval_env)]
 
-    state, done = env.reset(), False
+    state, _ = env.reset()
     episode_reward = 0
     episode_timesteps = 0
     episode_num = 0
@@ -186,7 +189,7 @@ if __name__ == "__main__":
                     summary_writer.add_scalar(f'info/{key}', value, t + 1)
                 summary_writer.flush()
 
-        if done:
+        if terminated or truncated:
             # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
             # print(env_info)
             print(
@@ -195,7 +198,7 @@ if __name__ == "__main__":
                 summary_writer.add_scalar(f'info/{key}', value, t + 1)
             summary_writer.flush()
             # Reset environment
-            state, done = env.reset(), False
+            state, _ = env.reset()
             episode_reward = 0
             episode_timesteps = 0
             episode_num += 1
