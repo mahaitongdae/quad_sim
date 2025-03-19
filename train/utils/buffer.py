@@ -63,8 +63,9 @@ class ReplayBuffer(object):
 
 class RealDataBuffer(ReplayBuffer):
 
-	def __init__(self, state_dim, action_dim, max_size=int(1e6)):
-		super(RealDataBuffer, self).__init__(state_dim, action_dim, max_size)
+	def __init__(self, max_size=int(1e6), device='cpu'):
+		super(RealDataBuffer, self).__init__(state_dim = 28, action_dim = 4, max_size=max_size,
+											 device=device)
 
 	def compute_reward(self, pos_error, rpy, vxyz, rpy_rate, control):
 		rew_pos = - 2.5 * np.linalg.norm(pos_error, axis=1)
@@ -157,12 +158,12 @@ class RealDataBuffer(ReplayBuffer):
 
 
 def test_load_single_data():
-	buf = RealDataBuffer(state_dim=28, action_dim=4)
+	buf = RealDataBuffer()
 	st, at, reward, stp1 = buf.load_usd_data('/media/naliseas-workstation/crazyflie/log27')
 	print(f"{st.shape} {at.shape} {reward.shape} {stp1.shape}")
 
 def test_replay():
-	buf = RealDataBuffer(state_dim=28, action_dim=4)
+	buf = RealDataBuffer()
 	buf.load_all_data('/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/deploy/sample_log')
 	print(buf.sample(batch_size=256))
 

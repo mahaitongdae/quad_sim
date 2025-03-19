@@ -33,6 +33,8 @@ import torch
 import seaborn
 import pandas as pd
 from matplotlib import pyplot as plt
+import logging
+logging.getLogger().setLevel(logging.ERROR)
 
 DEFAULT_GUI = True
 DEFAULT_RECORD_VIDEO = False
@@ -46,7 +48,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
         state = state.unsqueeze(0)
         dist = actor(state)
         action = dist.mean
-        print(action)
+        # print(action)
         assert action.ndim == 2 and action.shape[0] == 1
         return action[0].detach().numpy()
 
@@ -64,7 +66,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
                               hidden_depth=2,
                               log_std_bounds=[-20., 1.])
     actor.load_state_dict(
-        torch.load('/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_revise_no_delay/1/log/last_actor.pth',
+        torch.load('/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_increase_4s/2/log/last_actor.pth',
                    map_location=torch.device('cpu')))
     logger = LoggerV1(logging_freq_hz=int(env.CTRL_FREQ),
                       env = env,
@@ -77,6 +79,7 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
     for i in range(env.CTRL_FREQ):
         action = select_action(actor, obs)
         obs, reward, terminated, truncated, info = env.step(action)
+        print(obs[:3])
         logger.log(drone=0,
                    timestamp=i/env.CTRL_FREQ,
                    state=obs,
@@ -89,7 +92,6 @@ def run(output_folder=DEFAULT_OUTPUT_FOLDER, gui=DEFAULT_GUI, plot=True, colab=D
             rew['label'].append(key)
             rew['t'].append(i)
 
-        print(terminated)
         sync(i, start, env.CTRL_TIMESTEP)
         if terminated:
             print(info)

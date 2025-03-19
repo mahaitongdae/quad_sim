@@ -57,38 +57,39 @@ static const float layer_0_bias[64] = {0.19794142,-0.26739395,0.6091606,-0.08794
 static const float layer_1_bias[64] = {-0.32800543,-0.44761807,-0.36431187,-0.21349816,-0.15360783,-0.29351714,-0.3248538,-0.3108733,-0.8533198,-0.7849186,-0.5125443,-0.68471885,-0.35327908,-0.6601873,-0.9021398,-0.20100415,-0.8863627,-0.71897256,-0.34659654,-0.2881104,-0.7789706,-0.13002041,-0.4438994,0.32191038,-0.29001075,-0.82623893,-0.10698562,-0.36211717,-0.8984886,-0.70320755,-0.36983904,-0.8573374,-0.3477477,-0.03218486,-0.58540356,-0.30687544,-0.14847238,-0.036466103,-0.40515327,-0.384617,-0.5476384,-0.82501215,0.2441706,-0.90424824,-0.8513093,-0.73934007,-0.15152588,-0.36080477,-0.23202445,-0.6740778,-0.48991868,-0.4190436,-0.7174561,-0.51500136,-0.4436053,-0.8479258,-0.5294474,-0.2859031,-0.57152545,-0.73480713,-0.24157311,-0.12854226,-0.6666747,-0.5363043};
 static const float layer_2_bias[4] = {-0.2908698,-0.18738765,-0.13578677,0.068152495};
 
-	void networkEvaluate(control_t *control, const float *state_array) {
-	
-		for (int i = 0; i < structure[0][0]; i++) {
-			output_0[i] = 0;
-			for (int j = 0; j < structure[0][1]; j++) {
-				output_0[i] += state_array[j] * layer_0_weight[j][i];
-			}
-			output_0[i] += layer_0_bias[i];
-			output_0[i] = tanhf(output_0[i]);
-		}
-	
-		for (int i = 0; i < structure[1][0]; i++) {
-			output_1[i] = 0;
-			for (int j = 0; j < structure[1][1]; j++) {
-				output_1[i] += output_0[j] * layer_1_weight[j][i];
-			}
-			output_1[i] += layer_1_bias[i];
-			output_1[i] = elu(output_1[i]);
-		}
-		
-		for (int i = 0; i < structure[2][0]; i++) {
-			output_2[i] = 0;
-			for (int j = 0; j < structure[2][1]; j++) {
-				output_2[i] += output_1[j] * layer_2_weight[j][i];
-			}
-			output_2[i] += layer_2_bias[i];
-		}
-		
-		control->normalizedForces[0] = clip(scale(output_2[0]), 0.0, 1.0);
-		control->normalizedForces[1] = clip(scale(output_2[1]), 0.0, 1.0);
-		control->normalizedForces[2] = clip(scale(output_2[2]), 0.0, 1.0);
-		control->normalizedForces[3] = clip(scale(output_2[3]), 0.0, 1.0);
-	
-	}
-	
+void networkEvaluate(control_t *control, const float *state_array) {
+
+    for (int i = 0; i < structure[0][0]; i++) {
+        output_0[i] = 0;
+        for (int j = 0; j < structure[0][1]; j++) {
+            output_0[i] += state_array[j] * layer_0_weight[j][i];
+        }
+        output_0[i] += layer_0_bias[i];
+        output_0[i] = tanhf(output_0[i]);
+    }
+
+    for (int i = 0; i < structure[1][0]; i++) {
+        output_1[i] = 0;
+        for (int j = 0; j < structure[1][1]; j++) {
+            output_1[i] += output_0[j] * layer_1_weight[j][i];
+        }
+        output_1[i] += layer_1_bias[i];
+        output_1[i] = elu(output_1[i]);
+    }
+
+    for (int i = 0; i < structure[2][0]; i++) {
+        output_2[i] = 0;
+        for (int j = 0; j < structure[2][1]; j++) {
+            output_2[i] += output_1[j] * layer_2_weight[j][i];
+        }
+        output_2[i] += layer_2_bias[i];
+    }
+
+    control->normalizedForces[0] = clip(scale(output_2[0]), 0.0, 1.0);
+    control->normalizedForces[1] = clip(scale(output_2[1]), 0.0, 1.0);
+    control->normalizedForces[2] = clip(scale(output_2[2]), 0.0, 1.0);
+    control->normalizedForces[3] = clip(scale(output_2[3]), 0.0, 1.0);
+
+}
+
+

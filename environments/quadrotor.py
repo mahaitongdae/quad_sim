@@ -1728,7 +1728,7 @@ def main(argv):
     parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument(
         '-m', "--mode",
-        default="mellinger",
+        default="updown",
         help="Test mode: "
              "mellinger - rollout with mellinger controller"
              "updown - rollout with UpDown controller (to test step responses)"

@@ -1,3 +1,7 @@
+"""
+Many places in this file are hard-coded for crazyflies environments.
+
+"""
 import numpy as np
 import torch
 import gym
@@ -22,13 +26,16 @@ if __name__ == "__main__":
 
     parser = argparse.ArgumentParser()
     parser.add_argument('--device', type=str, default='cuda')
-    parser.add_argument("--dir", default='sac_raw_force_input', type=str)
+    parser.add_argument("--dir", default='transfer', type=str)
     parser.add_argument("--alg", default="spederv3")  # Alg name (sac, feature_sac)
-    parser.add_argument("--log_path", default="hover-aviary-v0")  # Environment name
+    parser.add_argument("--agent_path",
+                        default=root_dir + "/log/hover-aviary-v0/spederv3/sac_raw_force_input/1")  # Environment name
+    parser.add_argument("--log_path",
+                        default=root_dir + "/deploy/sample_log")  # Environment name
     parser.add_argument("--seed", default=1, type=int)  # Sets Gym, PyTorch and Numpy seeds
     parser.add_argument("--start_timesteps", default=0, type=float)  # Time steps initial random policy is used
     parser.add_argument("--eval_freq", default=2e4, type=int)  # How often (time steps) we evaluate
-    parser.add_argument("--max_timesteps", default=16e5, type=float)  # Max time steps to run environment
+    parser.add_argument("--max_timesteps", default=1e3, type=float)  # Max time steps to run environment
     parser.add_argument("--expl_noise", default=0.1)  # Std of Gaussian exploration noise
     parser.add_argument("--batch_size", default=256, type=int)  # Batch size for both actor and critic
     parser.add_argument("--hidden_dim", default=256, type=int)  # Network hidden dims
@@ -42,7 +49,7 @@ if __name__ == "__main__":
 
 
     # dir_name =
-    log_path = f'log/{args.env}/{args.alg}/{args.dir}/{args.seed}/log'
+    log_path = f'log/transfer/{args.alg}/{args.dir}/log'
     summary_writer = SummaryWriter(log_path)
 
     # Store training parameters
@@ -54,72 +61,29 @@ if __name__ == "__main__":
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
 
-    #
-    state_dim = env.observation_space.shape[0]
-    action_dim = env.action_space.shape[0]
-    max_action = float(env.action_space.high[0])
-
     kwargs = {
-        "state_dim": state_dim,
-        "action_dim": action_dim,
-        "action_space": env.action_space,
+        "state_dim": 28,
+        "action_dim": 4,
+        "action_space": gym.spaces.box.Box(low=-1, high=1, shape=(4,), dtype=np.float32),
         "discount": args.discount,
         "tau": args.tau,
         "hidden_dim": args.hidden_dim,
     }
+    kwargs.update(vars(args))
 
-    # Initialize policy
-    if args.alg == "sac":
-        agent = sac_agent.SACAgent(**kwargs)
-    elif args.alg == 'mle':
-        kwargs['extra_feature_steps'] = args.extra_feature_steps
-        kwargs['feature_dim'] = args.feature_dim
-        agent = feature_sac_agent.MLEFeatureAgent(**kwargs)
-    elif args.alg == 'speder':
-        kwargs['extra_feature_steps'] = args.extra_feature_steps
-        kwargs['feature_dim'] = args.feature_dim
-        agent = feature_sac_agent.SPEDERAgent(**kwargs)
-    elif args.alg == 'spederv2':
-        kwargs['extra_feature_steps'] = args.extra_feature_steps
-        kwargs['feature_dim'] = args.feature_dim
-        agent = feature_sac_agent.SPEDERAgentV2(**kwargs)
-    elif args.alg == 'spederv3':
-        kwargs['extra_feature_steps'] = args.extra_feature_steps
-        kwargs['feature_dim'] = args.feature_dim
-        agent = feature_sac_agent.SPEDERAgentV3Mel(**kwargs)
+    agent = feature_sac_agent.TransferAgent(**kwargs)
+    # agent.actor.load_state_dict(torch.load(os.path.join(args.agent_path, 'best_actor.pth')))
+    # agent.critic.load_state_dict(torch.load(os.path.join(args.agent_path, 'best_critic.pth')))
+    # agent.feature_mu.load_state_dict(torch.load(os.path.join(args.agent_path, 'best_feature_mu.pth')))
 
-    replay_buffer = buffer.ReplayBuffer(state_dim, action_dim)
-
-    # Evaluate untrained policy
-    evaluations = [util.eval_policy(agent, eval_env)]
-
-    state, done = env.reset(), False
-    episode_reward = 0
-    episode_timesteps = 0
-    episode_num = 0
+    replay_buffer = buffer.RealDataBuffer(device = args.device)
+    replay_buffer.load_all_data(args.log_path)
+    #
     timer = util.Timer()
 
-    best_eval_ret = -1e6
+    # best_eval_ret = -1e6
 
     for t in range(int(args.max_timesteps)):
-
-        episode_timesteps += 1
-
-        # Select action randomly or according to policy
-        if t < args.start_timesteps:
-            action = env.action_space.sample()
-        else:
-            action = agent.select_action(state, explore=True)
-
-        # Perform action
-        next_state, reward, done, _ = env.step(action)
-        done_bool = float(done) # if episode_timesteps < max_length else 0
-
-        # Store data in replay buffer
-        replay_buffer.add(state, action, next_state, reward, done_bool)
-
-        state = next_state
-        episode_reward += reward
 
         # Train agent after collecting sufficient data
         if t >= args.start_timesteps:
@@ -130,51 +94,18 @@ if __name__ == "__main__":
                     summary_writer.add_scalar(f'info/{key}', value, t + 1)
                 summary_writer.flush()
 
-        if done:
-            # +1 to account for 0 indexing. +0 on ep_timesteps since it will increment +1 even if done=True
-            print(
-                f"Total T: {t + 1} Episode Num: {episode_num + 1} Episode T: {episode_timesteps} Reward: {episode_reward:.3f}")
-            # Reset environment
-            state, done = env.reset(), False
-            episode_reward = 0
-            episode_timesteps = 0
-            episode_num += 1
-
-            # Evaluate episode
-        if (t + 1) % args.eval_freq == 0:
             steps_per_sec = timer.steps_per_sec(t + 1)
-            eva_ret = util.eval_policy(agent, eval_env)
-            evaluations.append(eva_ret)
-
-            if t >= args.start_timesteps:
-                info['evaluation'] = eva_ret
-                for key, value in info.items():
-                    summary_writer.add_scalar(f'info/{key}', value, t + 1)
-                summary_writer.flush()
-
-            if eva_ret > best_eval_ret:
-                best_actor = agent.actor.state_dict()
-                best_critic = agent.critic.state_dict()
-                torch.save(best_actor, os.path.join(log_path, 'best_actor.pth'))
-                torch.save(best_critic, os.path.join(log_path, 'best_critic.pth'))
-
-                if args.alg != 'sac':
-                    if not args.alg.endswith('v3'):
-                        best_feature_phi = agent.feature_phi.state_dict()
-                        torch.save(best_feature_phi, os.path.join(log_path, 'best_feature_phi.pth'))
-                    best_feature_mu = agent.feature_mu.state_dict()
-                    torch.save(best_feature_mu, os.path.join(log_path, 'best_feature_mu.pth'))
             
             if t >= int(args.max_timesteps) - 5:
                 terminal_actor = agent.actor.state_dict()
                 terminal_critic = agent.critic.state_dict()
-                torch.save(best_actor, os.path.join(log_path, 'terminal_actor_{}.pth'.format(t)))
-                torch.save(best_critic, os.path.join(log_path, 'terminal_critic_{}.pth'.format(t)))
+                torch.save(agent.actor.state_dict(), os.path.join(log_path, 'terminal_actor_{}.pth'.format(t)))
+                torch.save(agent.critic.state_dict(), os.path.join(log_path, 'terminal_critic_{}.pth'.format(t)))
 
                 if args.alg != 'sac':
-                    if not args.alg.endswith('v3'):
-                        best_feature_phi = agent.feature_phi.state_dict()
-                        torch.save(best_feature_phi, os.path.join(log_path, 'terminal_phi_{}.pth'.format(t)))
+                    # if not args.alg.endswith('v3'):
+                    #     best_feature_phi = agent.feature_phi.state_dict()
+                    #     torch.save(best_feature_phi, os.path.join(log_path, 'terminal_phi_{}.pth'.format(t)))
                     best_feature_mu = agent.feature_mu.state_dict()
                     torch.save(best_feature_mu, os.path.join(log_path, 'terminal_mu_{}.pth'.format(t)))
 
@@ -187,6 +118,6 @@ if __name__ == "__main__":
     torch.save(agent.actor.state_dict(), os.path.join(log_path, 'last_actor.pth'))
     torch.save(agent.critic.state_dict(), os.path.join(log_path, 'last_critic.pth'))
     if args.alg != 'sac':
-        if not args.alg.endswith('v3'):
-            torch.save(agent.feature_phi.state_dict(), os.path.join(log_path, 'last_feature_phi.pth'))
+        # if not args.alg.endswith('v3'):
+        #     torch.save(agent.feature_phi.state_dict(), os.path.join(log_path, 'last_feature_phi.pth'))
         torch.save(agent.feature_mu.state_dict(), os.path.join(log_path, 'last_feature_mu.pth'))

@@ -20,21 +20,23 @@ def eval(log_path, ):
     # if 'env_params' in kwargs.keys():
     #     pass
     # else:
+    from environments.quadrotor import QuadrotorEnv
     env_params_name = 'sac_baseline_randomize_t2w15_35.yml'
 
     # if "Quadrotor" in args.env:
-    env = 'Quadrotor-v2'
+    env = 'Quadrotor-v1'
     params_path = root_dir + '/environments/config/' + env_params_name
     yaml_stream = open(params_path, 'r')
     params = yaml.load(yaml_stream, Loader=yaml.Loader)
-    env = gym.make(env, **params['variant']["env_param"])
+    env = gym.make(env) # , **params['variant']["env_param"]
     from gym.wrappers.transform_reward import TransformReward
     env = TransformReward(env, lambda r: 10. * r)
+    env = gym.wrappers.rescale_action.RescaleAction(env, -1., 1.)
 
 
     actor = DiagGaussianActor(obs_dim=18,
                               action_dim=4,
-                              hidden_dim=128,
+                              hidden_dim=64,
                               hidden_depth=2,
                               log_std_bounds=[-5., 2.],
                               hidden_activation=torch.nn.Tanh())
@@ -53,10 +55,11 @@ def eval(log_path, ):
         return to_np(action[0])
 
     while not done:
-        state ,_, done, _ = env.step(action=select_action(actor, state))
+        state ,rew, done, _ = env.step(action=select_action(actor, state))
+        # print(rew)
         env.render()
 
 
 
 if __name__ == '__main__':
-    eval("log/Quadrotor-v2/sac/sac_lipsnet/1")
+    eval("/home/haitong/PycharmProjects/sim_to_real/training/log/Quadrotor-v1/sac_revise_no_delay/2/log")
