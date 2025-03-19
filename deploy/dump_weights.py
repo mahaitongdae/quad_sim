@@ -236,26 +236,27 @@ if __name__ == '__main__':
     import argparse
     import datetime
     parser = argparse.ArgumentParser()
-    parser.add_argument('--path', default='/home/naliseas-workstation/Documents/haitong/sim_to_real/quad_sim/log/hover-aviary-v0/sac/sac_increase_4s/1/log/best_actor.pth', type=str)
-    parser.add_argument('--test', default=False, type=bool)
+    parser.add_argument('--path', default='/home/haitong/PycharmProjects/sim_to_real/training/log/hover-aviary-v0/sac/sac_increase_4s/2/log', type=str)
+    parser.add_argument('--test', default=True, type=bool)
     args = parser.parse_args()
 
     actor = DiagGaussianActor(obs_dim=20, action_dim=4, hidden_dim=64, hidden_depth=2,
                               log_std_bounds=[-5., 2.],lipsnet=False)  # hard coded for drone controllers.
 
-    actor.load_state_dict(torch.load(args.path, map_location=torch.device('cpu')))
+    actor.load_state_dict(torch.load(os.path.join(args.path, "best_actor.pth"), map_location=torch.device('cpu')))
     fname = "network_evaluate_{}".format(datetime.datetime.now().strftime("%Y_%m_%d_%H_%M_%S"))
 
-    generate(actor, '../deploy/{}'.format(fname), test_file=args.test)
+    generate(actor, f'{args.path}/{fname}', test_file=args.test)
     input = torch.ones(1, 20)
     print('torch output \n')
     print(torch.tanh(actor.trunk(input))[0][:4])
-    subprocess.run(["gcc",
-                          f"{fname}.c",
-                          "-o",
-                          f"{fname}",
-                          "-lm"], capture_output=True, text=True)
+
     if args.test:
-        results = subprocess.run([f"./{fname}_test"], capture_output=True, text=True)
+        subprocess.run(["gcc",
+                        f"{args.path}/{fname}_test.c",
+                        "-o",
+                        f"{args.path}/{fname}_test",
+                        "-lm"], capture_output=True, text=True)
+        results = subprocess.run([f"{args.path}/{fname}_test"], capture_output=True, text=True)
         print(results.stdout)
 
